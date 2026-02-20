@@ -1,0 +1,56 @@
+# Python
+venv/
+.venv/
+env/
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+pip-log.txt
+*.egg-info/
+dist/
+build/
+
+# Node.js
+frontend/node_modules/
+frontend/build/
+frontend/.env.local
+npm-debug.log*
+
+# Datenbanken & Daten
+*.db
+*.sqlite
+*.sqlite3
+kanban.db
+data/chroma/
+data/redis/
+logs/*.log
+
+# Docker
+.dockerignore
+docker-data/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# Secrets
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Temporary
+tmp/
+temp/
+*.tmp

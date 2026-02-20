@@ -1,0 +1,88 @@
+services:
+  # Redis Cache for Git
+  redis:
+    image: redis:7-alpine
+    container_name: ki-redis
+    volumes:
+      - ~/ki-data/redis:/data  # Außerhalb des Repos!
+    networks:
+      - ki-network
+    restart: unless-stopped
+
+  # Backend API
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    container_name: ki-backend
+    ports:
+      - "8000:8000"
+    volumes:
+      - ~/ki-data/kanban.db:/app/kanban.db  # Außerhalb des Repos!
+      - ./.env:/app/.env:ro
+      - ~/ki-data/chroma:/app/data/chroma  # Außerhalb des Repos!
+      - ./agents:/app/agents:ro
+    environment:
+      - DATABASE_URL=sqlite:///./kanban.db
+      - REDIS_URL=redis://redis:6379
+      - CHROMA_PERSIST_DIR=/app/data/chroma
+    depends_on:
+      - redis
+    restart: unless-stopped
+    networks:
+      - ki-network
+
+  # Frontend React App
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.frontend
+    container_name: ki-frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - REACT_APP_API_URL=http://localhost:8000
+    depends_on:
+      - backend
+    networks:
+      - ki-network
+
+  # Agent Worker (Enhanced)
+  agent-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.worker
+    container_name: ki-agent
+    volumes:
+      - ~/ki-data/kanban.db:/app/kanban.db  # Außerhalb des Repos!
+      - ./.env:/app/.env:ro
+      - ~/ki-data/chroma:/app/data/chroma  # Außerhalb des Repos!
+      - ./agents:/app/agents:ro
+    environment:
+      - DATABASE_URL=sqlite:///./kanban.db
+      - REDIS_URL=redis://redis:6379
+      - CHROMA_PERSIST_DIR=/app/data/chroma
+      - USE_ENHANCED_AGENT=true
+    depends_on:
+      - backend
+      - redis
+    restart: unless-stopped
+    networks:
+      - ki-network
+
+  # OPTIONAL: PostgreSQL statt SQLite (für Production)
+  # postgres:
+  #   image: postgres:16-alpine
+  #   container_name: ki-postgres
+  #   volumes:
+  #     - ~/ki-data/postgres:/var/lib/postgresql/data
+  #   environment:
+  #     POSTGRES_USER: ki_agent
+  #     POSTGRES_PASSWORD: ${DB_PASSWORD}
+  #     POSTGRES_DB: kanban
+  #   networks:
+  #     - ki-network
+
+networks:
+  ki-network:
+    driver: bridge
