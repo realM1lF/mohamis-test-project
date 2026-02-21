@@ -5,8 +5,10 @@ following the OpenAI Function Calling pattern.
 """
 
 from .base import BaseTool, ToolResult, ToolParameter, ToolParameterType
+from .registry import ToolRegistry
+from .executor import ToolExecutor
 
-# Local file system tools (existing)
+# Local file system tools
 from .file_tools import (
     FileReadTool,
     FileWriteTool,
@@ -14,70 +16,59 @@ from .file_tools import (
     FileSearchTool,
 )
 
-# Git repository tools (new implementation)
-from .git_file_tools import (
-    ReadFileTool,
-    WriteFileTool, 
-    ListFilesTool,
-    CreateBranchTool,
-    GetRepoInfoTool,
-    # Aliases for backward compatibility
-    GitReadFileTool,
-    GitWriteFileTool,
-    GitListFilesTool,
-    GitCreateBranchTool,
-    GitGetRepoInfoTool,
-)
-
-# Infrastructure components
-from .registry import ToolRegistry
-from .executor import ToolExecutor
-
-# Additional Git tools (from git_tools.py)
+# Git tools
 try:
-    from .git_tools import GitBranchTool, GitCommitTool, GitStatusTool
+    from .git_tools import (
+        GitBranchTool,
+        GitCommitTool,
+        GitStatusTool,
+        GitLogTool,
+    )
 except ImportError:
     GitBranchTool = None
     GitCommitTool = None
     GitStatusTool = None
+    GitLogTool = None
 
-# Code tools (from code_tools.py)
+# Code tools
 try:
-    from .code_tools import CodeGenerateTool, CodeAnalyzeTool
+    from .code_tools import (
+        CodeGenerateTool,
+        CodeAnalyzeTool,
+        CodeRefactorTool,
+        CodeTestTool,
+        CodeReviewTool,
+    )
 except ImportError:
     CodeGenerateTool = None
     CodeAnalyzeTool = None
+    CodeRefactorTool = None
+    CodeTestTool = None
+    CodeReviewTool = None
 
 __all__ = [
     # Base classes
     "BaseTool",
-    "ToolResult", 
+    "ToolResult",
     "ToolParameter",
     "ToolParameterType",
-    # Local File Tools
+    # Infrastructure
+    "ToolRegistry",
+    "ToolExecutor",
+    # File Tools
     "FileReadTool",
     "FileWriteTool",
     "FileListTool",
     "FileSearchTool",
-    # Git Repository File Tools
-    "ReadFileTool",
-    "WriteFileTool",
-    "ListFilesTool", 
-    "CreateBranchTool",
-    "GetRepoInfoTool",
-    # Git Tools aliases
-    "GitReadFileTool",
-    "GitWriteFileTool",
-    "GitListFilesTool",
-    "GitCreateBranchTool",
-    "GitGetRepoInfoTool",
-    # Infrastructure
-    "ToolRegistry",
-    "ToolExecutor",
-    # Optional components
+    # Git Tools (may be None if import failed)
     "GitBranchTool",
     "GitCommitTool",
     "GitStatusTool",
+    "GitLogTool",
+    # Code Tools (may be None if import failed)
     "CodeGenerateTool",
     "CodeAnalyzeTool",
+    "CodeRefactorTool",
+    "CodeTestTool",
+    "CodeReviewTool",
 ]
