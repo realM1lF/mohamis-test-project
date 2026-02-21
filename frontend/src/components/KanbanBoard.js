@@ -11,80 +11,33 @@ import {
 import {
   SortableContext,
   verticalListSortingStrategy,
+  useSortable,
 } from '@dnd-kit/sortable';
-import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
+import { 
+  Paper, 
+  Typography, 
+  Box, 
+  Chip,
+  Card,
+  CardContent,
+} from '@mui/material';
+import TicketCard from './TicketCard';
+import { statusColors } from '../theme';
 
 const COLUMNS = [
-  { id: 'backlog', title: '📥 Backlog', color: '#667eea' },
-  { id: 'in_progress', title: '🔨 In Progress', color: '#f59e0b' },
-  { id: 'clarification', title: '❓ Rückfrage', color: '#ef4444' },
-  { id: 'testing', title: '🧪 Testing', color: '#10b981' },
-  { id: 'done', title: '✅ Done', color: '#6b7280' },
+  { id: 'backlog', title: 'Backlog', icon: 'inbox' },
+  { id: 'in_progress', title: 'In Progress', icon: 'engineering' },
+  { id: 'clarification', title: 'Rückfrage', icon: 'help' },
+  { id: 'testing', title: 'Testing', icon: 'science' },
+  { id: 'done', title: 'Done', icon: 'check_circle' },
 ];
 
-// Sortable Ticket Card Component
-function SortableTicketCard({ ticket, onClick }) {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({ 
-    id: ticket.id,
-    data: {
-      type: 'ticket',
-      ticket,
-    }
-  });
+const getStatusColor = (status) => {
+  return statusColors[status] || statusColors.backlog;
+};
 
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging ? 0.5 : 1,
-  };
-
-  const formatDate = (dateString) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('de-DE', { 
-      day: '2-digit', 
-      month: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-  };
-
-  return (
-    <div
-      ref={setNodeRef}
-      style={style}
-      {...attributes}
-      {...listeners}
-      className={`ticket-card ${ticket.status}`}
-      onClick={(e) => {
-        if (!isDragging) onClick(ticket);
-      }}
-    >
-      <span className={`ticket-priority priority-${ticket.priority}`}>
-        {ticket.priority}
-      </span>
-      <div className="ticket-title">{ticket.title}</div>
-      <div className="ticket-meta">
-        <span>{ticket.customer}</span>
-        <span>{formatDate(ticket.created_at)}</span>
-      </div>
-      {ticket.agent && (
-        <div style={{ marginTop: '0.5rem', fontSize: '0.8rem', color: '#10b981' }}>
-          🤖 {ticket.agent === 'mohami' ? 'Mohami' : ticket.agent}
-        </div>
-      )}
-    </div>
-  );
-}
-
-// Droppable Column Component
+// Droppable Column Component with M3 styling
 function DroppableColumn({ column, tickets, onTicketClick, isOver }) {
   const { setNodeRef } = useSortable({
     id: column.id,
@@ -95,33 +48,138 @@ function DroppableColumn({ column, tickets, onTicketClick, isOver }) {
   });
 
   const ticketIds = tickets.map(t => t.id);
+  const statusColor = getStatusColor(column.id);
 
   return (
-    <div 
+    <Paper
       ref={setNodeRef}
-      className={`kanban-column ${isOver ? 'drag-over' : ''}`}
-      data-column={column.id}
+      elevation={isOver ? 2 : 0}
+      sx={{
+        minWidth: 280,
+        maxWidth: 320,
+        flex: 1,
+        backgroundColor: isOver ? '#E8F4FD' : '#F2F4F7',
+        borderRadius: 3,
+        p: 2,
+        minHeight: 500,
+        display: 'flex',
+        flexDirection: 'column',
+        border: isOver ? '2px dashed #006495' : '2px solid transparent',
+        transition: 'all 0.2s ease-in-out',
+      }}
     >
-      <div className="column-header" style={{ borderColor: column.color }}>
-        <h3>{column.title}</h3>
-        <span className="ticket-count">{tickets.length}</span>
-      </div>
-      
+      {/* Column Header */}
+      <Box 
+        sx={{ 
+          display: 'flex', 
+          justifyContent: 'space-between', 
+          alignItems: 'center',
+          mb: 2,
+          pb: 1.5,
+          borderBottom: `2px solid ${statusColor.container}`,
+        }}
+      >
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <span className="material-symbols-rounded" style={{ 
+            color: statusColor.main,
+            fontSize: 20,
+          }}>
+            {column.icon}
+          </span>
+          <Typography 
+            variant="titleMedium" 
+            sx={{ 
+              fontWeight: 600,
+              color: '#1A1C1E',
+              textTransform: 'uppercase',
+              letterSpacing: '0.025em',
+              fontSize: '0.875rem',
+            }}
+          >
+            {column.title}
+          </Typography>
+        </Box>
+        <Chip
+          label={tickets.length}
+          size="small"
+          sx={{
+            backgroundColor: statusColor.container,
+            color: statusColor.onContainer,
+            fontWeight: 600,
+            height: 24,
+            minWidth: 32,
+          }}
+        />
+      </Box>
+
+      {/* Tickets Container */}
       <SortableContext
         items={ticketIds}
         strategy={verticalListSortingStrategy}
       >
-        <div className="column-content">
+        <Box 
+          sx={{ 
+            flex: 1,
+            minHeight: 400,
+            borderRadius: 2,
+            backgroundColor: isOver ? 'rgba(0, 100, 149, 0.04)' : 'transparent',
+            transition: 'background-color 0.2s ease-in-out',
+          }}
+        >
           {tickets.map(ticket => (
-            <SortableTicketCard
+            <TicketCard
               key={ticket.id}
               ticket={ticket}
               onClick={onTicketClick}
             />
           ))}
-        </div>
+        </Box>
       </SortableContext>
-    </div>
+    </Paper>
+  );
+}
+
+// Drag Overlay Card (shown while dragging)
+function DragOverlayCard({ ticket }) {
+  const priorityColor = statusColors[ticket.priority] || statusColors.medium;
+  const statusColor = statusColors[ticket.status] || statusColors.backlog;
+
+  return (
+    <Card
+      elevation={4}
+      sx={{
+        width: 280,
+        transform: 'rotate(3deg)',
+        cursor: 'grabbing',
+        borderLeft: `4px solid ${statusColor.main}`,
+        backgroundColor: '#FDFCFF',
+      }}
+    >
+      <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
+        <Chip
+          label={ticket.priority.toUpperCase()}
+          size="small"
+          sx={{
+            mb: 1,
+            backgroundColor: priorityColor.container,
+            color: priorityColor.onContainer,
+            fontWeight: 600,
+            fontSize: '0.625rem',
+            height: 20,
+          }}
+        />
+        <Typography 
+          variant="titleMedium" 
+          sx={{ 
+            display: 'block',
+            lineHeight: 1.4,
+            color: '#1A1C1E',
+          }}
+        >
+          {ticket.title}
+        </Typography>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -151,7 +209,6 @@ function KanbanBoard({ tickets, onTicketClick, onTicketMove }) {
     const { over } = event;
     
     if (over) {
-      // Check if hovering over a column
       const overColumnId = over.data?.current?.column?.id || over.id;
       if (COLUMNS.find(c => c.id === overColumnId)) {
         setOverColumn(overColumnId);
@@ -169,30 +226,23 @@ function KanbanBoard({ tickets, onTicketClick, onTicketMove }) {
 
     const ticketId = active.id;
     
-    // Determine target column
     let targetColumnId;
     
-    // Check if dropped over a column directly
     if (over.data?.current?.type === 'column') {
       targetColumnId = over.data.current.column.id;
     } else if (over.data?.current?.type === 'ticket') {
-      // Dropped over a ticket - get its column
       targetColumnId = over.data.current.ticket.status;
     } else {
-      // Check if over.id is a column id
       targetColumnId = over.id;
     }
 
-    // Validate column
     if (!COLUMNS.find(c => c.id === targetColumnId)) {
       return;
     }
 
-    // Find the ticket
     const ticket = tickets.find(t => t.id === ticketId);
     if (!ticket) return;
 
-    // Only move if status changed
     if (ticket.status !== targetColumnId) {
       console.log(`Moving ticket ${ticketId} from ${ticket.status} to ${targetColumnId}`);
       onTicketMove(ticketId, targetColumnId);
@@ -209,7 +259,30 @@ function KanbanBoard({ tickets, onTicketClick, onTicketMove }) {
       onDragOver={handleDragOver}
       onDragEnd={handleDragEnd}
     >
-      <div className="kanban-board">
+      <Box
+        sx={{
+          display: 'flex',
+          gap: 2,
+          overflowX: 'auto',
+          pb: 2,
+          px: 1,
+          minHeight: 'calc(100vh - 200px)',
+          '&::-webkit-scrollbar': {
+            height: 8,
+          },
+          '&::-webkit-scrollbar-track': {
+            backgroundColor: '#F2F4F7',
+            borderRadius: 4,
+          },
+          '&::-webkit-scrollbar-thumb': {
+            backgroundColor: '#C1C7CE',
+            borderRadius: 4,
+          },
+          '&::-webkit-scrollbar-thumb:hover': {
+            backgroundColor: '#72787E',
+          },
+        }}
+      >
         {COLUMNS.map(column => {
           const columnTickets = tickets.filter(t => t.status === column.id);
           
@@ -223,23 +296,11 @@ function KanbanBoard({ tickets, onTicketClick, onTicketMove }) {
             />
           );
         })}
-      </div>
+      </Box>
 
       <DragOverlay>
         {activeTicket ? (
-          <div 
-            className={`ticket-card ${activeTicket.status}`}
-            style={{ 
-              cursor: 'grabbing',
-              boxShadow: '0 8px 20px rgba(0,0,0,0.2)',
-              transform: 'rotate(3deg)',
-            }}
-          >
-            <span className={`ticket-priority priority-${activeTicket.priority}`}>
-              {activeTicket.priority}
-            </span>
-            <div className="ticket-title">{activeTicket.title}</div>
-          </div>
+          <DragOverlayCard ticket={activeTicket} />
         ) : null}
       </DragOverlay>
     </DndContext>

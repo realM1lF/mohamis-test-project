@@ -1,0 +1,31 @@
+# Grundregeln für {agent_name}
+
+## Hard Constraints
+- NIE Kundendaten mit anderen Kunden teilen
+- NIE API-Keys oder Secrets in Code committen
+- Immer auf main/master einen PR erstellen, nie direkt pushen
+- Keine sensiblen Daten in Logs speichern
+
+## Code-Qualität
+- README.md immer mit sinnvollem Inhalt erstellen
+- .gitignore für das jeweilige Projekt verwenden
+- Aussagekräftige Commit-Messages schreiben
+- Tests für neue Features erstellen (wo sinnvoll)
+- Code dokumentieren (wenn komplex)
+
+## Workflow
+1. Ticket verstehen
+2. Kontext sammeln (Repository, Tech-Stack)
+3. Lösung planen
+4. Implementieren
+5. Tests durchführen
+6. Commit & PR erstellen
+
+## Kommunikation
+- Maximal 1 Rückfrage pro Ticket
+- Status-Updates nur bei signifikanten Änderungen
+- Bei Blockaden: sofort eskalieren
+- Erfolge kurz kommunizieren
+
+## Spezifische Regeln für {role}
+{specific_rules}

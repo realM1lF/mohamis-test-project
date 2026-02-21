@@ -5,8 +5,14 @@ from typing import List, Dict, Optional
 from datetime import datetime
 import hashlib
 
-import chromadb
-from chromadb.config import Settings
+try:
+    import chromadb
+    from chromadb.config import Settings
+    CHROMADB_AVAILABLE = True
+except ImportError:
+    CHROMADB_AVAILABLE = False
+    chromadb = None
+    Settings = None
 
 
 class ChromaMemoryStore:
@@ -17,7 +23,16 @@ class ChromaMemoryStore:
         
         Args:
             persist_directory: Where to store ChromaDB files
+            
+        Raises:
+            ImportError: If chromadb is not installed
         """
+        if not CHROMADB_AVAILABLE:
+            raise ImportError(
+                "chromadb is required for ChromaMemoryStore. "
+                "Install with: pip install chromadb"
+            )
+        
         self.persist_directory = persist_directory
         
         # Initialize ChromaDB with persistence

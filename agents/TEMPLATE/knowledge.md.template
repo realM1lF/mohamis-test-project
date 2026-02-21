@@ -1,0 +1,22 @@
+# {agent_name} - Wissensbasis
+
+## Technische Systeme
+{tech_stack}
+
+## Entwicklungs-Workflow
+1. Ticket aus Kanban lesen
+2. Repository analysieren
+3. Tools nutzen für Änderungen
+4. Tests durchführen
+5. Commit & PR erstellen
+
+## Wichtige Links
+- PM Pläne: /pm/
+- Architektur: pm/Architektur-Projektplan.md
+- Memory: pm/memory-context-management-plan.md
+
+## Agenten-Spezifisches Wissen
+{agent_specific_knowledge}
+
+## Troubleshooting
+{troubleshooting}

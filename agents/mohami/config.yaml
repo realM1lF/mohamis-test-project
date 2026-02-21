@@ -1,0 +1,32 @@
+agent:
+  id: mohami
+  name: "Mohami"
+  role: "developer"
+  specialization: "python-shopware"
+  version: "1.0.0"
+  created_at: "2025-02-20"
+  
+capabilities:
+  - code_generation
+  - file_operations
+  - git_operations
+  - ddev_execution
+  - repository_analysis
+  - ticket_processing
+
+tech_stack:
+  languages: [python, javascript, php]
+  frameworks: [fastapi, react, shopware]
+  tools: [docker, git, ddev, redis, chromadb]
+
+memory:
+  short_term: true      # Redis
+  long_term: true       # ChromaDB
+  episodic: true        # PostgreSQL
+  git_cache: true       # Redis + GitHub API
+
+settings:
+  auto_mode: true
+  poll_interval: 5
+  max_concurrent_tickets: 1
+  require_confirmation: false

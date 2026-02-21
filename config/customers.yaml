@@ -1,0 +1,130 @@
+# Mohami KI-Mitarbeiter - Customer Configuration
+# 
+# RICHTIGER WORKFLOW:
+# 1. Kunde konfiguriert hier seine Daten
+# 2. Agent ruft WorkspaceManager.setup_workspace()
+# 3. Repo wird geklont nach ~/ki-data/workspaces/{customer}/
+# 4. Wenn has_ddev=true: DDEV startet im geklonten Repo
+# 5. Agent arbeitet lokal, committet und pusht zurück
+#
+# KEIN hardcoded DDEV mehr! Der KI-Mitarbeiter klont Repos!
+
+version: "2.0"
+
+# Template für neue Kunden (kopieren und anpassen)
+template:
+  id: "customer-id"
+  name: "Customer Name"
+  git_provider: "github"  # oder: bitbucket, gitlab
+  repo_url: "https://github.com/owner/repository"
+  has_ddev: false  # true wenn Repo DDEV-Konfiguration enthält
+  default_branch: "main"
+  workspace_path: "~/ki-data/workspaces/customer-id"
+  auth_token: null  # Optional: GitHub/Bitbucket Token für private Repos
+  
+  tech_stack:
+    type: "python"  # python, php, shopware, node, etc.
+    version: "3.11"
+    framework: null  # Optional: django, flask, laravel, etc.
+  
+  # Optional: Test-Konfiguration
+  test_config:
+    command: "python -m pytest"  # oder: vendor/bin/phpunit, npm test
+    directory: "."
+
+# Aktive Kundenkonfigurationen
+customers:
+  # Test-Customer für Development
+  test-customer:
+    id: test-customer
+    name: "Test Customer"
+    git_provider: github
+    repo_url: https://github.com/realM1lF/personal-ki-agents
+    has_ddev: false  # aktuell kein DDEV im Test-Repo
+    default_branch: main
+    workspace_path: ~/ki-data/workspaces/test-customer
+    auth_token: null  # Setze GITHUB_TOKEN für private Repos
+    
+    tech_stack:
+      type: python
+      version: "3.11"
+      framework: null
+    
+    test_config:
+      command: "python -m pytest"
+      directory: "."
+
+  # Beispiel: Python Projekt mit DDEV
+  # python-project:
+  #   id: python-project
+  #   name: "Python Project"
+  #   git_provider: github
+  #   repo_url: https://github.com/example/python-project
+  #   has_ddev: true  # Repo enthält .ddev/config.yaml
+  #   default_branch: main
+  #   workspace_path: ~/ki-data/workspaces/python-project
+  #   
+  #   tech_stack:
+  #     type: python
+  #     version: "3.11"
+  #     framework: django
+
+  # Beispiel: Shopware/PHP Projekt mit DDEV
+  # shopware-customer:
+  #   id: shopware-customer
+  #   name: "Shopware Customer"
+  #   git_provider: github
+  #   repo_url: https://github.com/example/shopware-shop
+  #   has_ddev: true
+  #   default_branch: main
+  #   workspace_path: ~/ki-data/workspaces/shopware-customer
+  #   
+  #   tech_stack:
+  #     type: php
+  #     version: "8.2"
+  #     framework: shopware
+  #   
+  #   test_config:
+  #     command: "vendor/bin/phpunit"
+  #     directory: "html"
+
+  # Beispiel: Bitbucket Repository
+  # bitbucket-customer:
+  #   id: bitbucket-customer
+  #   name: "Bitbucket Customer"
+  #   git_provider: bitbucket
+  #   repo_url: https://bitbucket.org/workspace/repository
+  #   has_ddev: false
+  #   default_branch: master
+  #   workspace_path: ~/ki-data/workspaces/bitbucket-customer
+  #   auth_token: null  # BITBUCKET_TOKEN
+  #   
+  #   tech_stack:
+  #     type: node
+  #     version: "18"
+  #     framework: react
+
+# Legacy-Format (wird für Abwärtskompatibilität unterstützt)
+# Alte Konfigurationen mit 'ddev:', 'shopware:', etc. werden automatisch
+# in das neue Format konvertiert
+
+# System-Einstellungen
+system:
+  # Basis-Pfad für alle Workspaces
+  base_workspace_path: ~/ki-data/workspaces
+  
+  # Standard-Timeout für Git-Operationen (Sekunden)
+  git_timeout: 600
+  
+  # Standard-Timeout für DDEV-Befehle (Sekunden)
+  ddev_timeout: 300
+  
+  # Automatisches Starten von DDEV wenn .ddev/config.yaml existiert
+  auto_start_ddev: true
+  
+  # Automatisches Pull vor Arbeit
+  auto_pull: true
+  
+  # Backup vor Code-Änderungen
+  backup_before_changes: true
+  backup_retention_days: 7

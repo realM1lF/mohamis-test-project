@@ -7,6 +7,9 @@ python-multipart==0.0.6
 
 # Database
 sqlalchemy==2.0.25
+asyncpg==0.29.0
+psycopg2-binary==2.9.9  # For pgvector support
+pgvector==0.2.5
 
 # HTTP Client (for GitHub API and Kimi API)
 httpx==0.26.0
@@ -25,6 +28,9 @@ pydantic-settings==2.1.0
 
 # Environment Variables
 python-dotenv==1.0.0
+
+# YAML Support
+pyyaml==6.0.1
 
 # Optional: For production
 # gunicorn==21.2.0

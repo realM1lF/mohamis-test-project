@@ -1,0 +1,27 @@
+agent:
+  id: {agent_id}
+  name: "{agent_name}"
+  role: "{role}"
+  specialization: "{specialization}"
+  version: "1.0.0"
+  created_at: "{created_at}"
+  
+capabilities:
+{capabilities}
+
+tech_stack:
+  languages: {languages}
+  frameworks: {frameworks}
+  tools: {tools}
+
+memory:
+  short_term: true      # Redis
+  long_term: true       # ChromaDB
+  episodic: true        # PostgreSQL
+  git_cache: true       # Redis + GitHub API
+
+settings:
+  auto_mode: false
+  poll_interval: 30
+  max_concurrent_tickets: 1
+  require_confirmation: false

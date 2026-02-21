@@ -1,313 +1,62 @@
-.App {
-  min-height: 100vh;
-  display: flex;
-  flex-direction: column;
-}
+/* App.css - Minimal custom styles */
+/* Most styling is now handled by Material UI */
 
-.app-header {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
-  padding: 1rem 2rem;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-}
-
-.app-header h1 {
-  font-size: 1.5rem;
-  font-weight: 600;
-}
-
-.btn-primary {
-  background: white;
-  color: #667eea;
-  border: none;
-  padding: 0.75rem 1.5rem;
-  border-radius: 8px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.2s;
-}
-
-.btn-primary:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0,0,0,0.2);
-}
-
-.app-main {
-  flex: 1;
-  padding: 1rem;
-  overflow-x: auto;
-}
-
-.loading {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  height: 100vh;
-  font-size: 1.2rem;
-  color: #666;
-}
-
-/* Kanban Board */
+/* Smooth scrolling for the kanban board */
 .kanban-board {
-  display: grid;
-  grid-template-columns: repeat(5, 1fr);
-  gap: 1rem;
-  min-width: 1200px;
+  scroll-behavior: smooth;
 }
 
-.kanban-column {
-  background: #f0f0f0;
-  border-radius: 12px;
-  padding: 1rem;
-  min-height: 500px;
+/* Custom scrollbar styling */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
 }
 
-.column-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 1rem;
-  padding-bottom: 0.75rem;
-  border-bottom: 2px solid #ddd;
+::-webkit-scrollbar-track {
+  background-color: #F2F4F7;
+  border-radius: 4px;
 }
 
-.column-header h3 {
-  font-size: 0.9rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  color: #555;
+::-webkit-scrollbar-thumb {
+  background-color: #C1C7CE;
+  border-radius: 4px;
 }
 
-.ticket-count {
-  background: #ddd;
-  padding: 0.25rem 0.5rem;
-  border-radius: 12px;
-  font-size: 0.8rem;
-  font-weight: 600;
+::-webkit-scrollbar-thumb:hover {
+  background-color: #72787E;
 }
 
-.ticket-card {
-  background: white;
-  border-radius: 8px;
-  padding: 1rem;
-  margin-bottom: 0.75rem;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-  cursor: grab;
-  transition: all 0.2s;
-  border-left: 4px solid #667eea;
+/* Loading animation */
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.7;
+    transform: scale(1.05);
+  }
+}
+
+/* Selection styling */
+::selection {
+  background-color: #CBE6FF;
+  color: #001E30;
+}
+
+/* Focus visible styling for accessibility */
+:focus-visible {
+  outline: 2px solid #006495;
+  outline-offset: 2px;
+}
+
+/* Smooth transitions for interactive elements */
+button, a, input, textarea, select {
+  transition: all 0.2s ease-in-out;
+}
+
+/* Prevent text selection during drag operations */
+.ticket-card, .kanban-column {
   user-select: none;
-  touch-action: none;
-}
-
-.ticket-card:active {
-  cursor: grabbing;
-}
-
-.ticket-card:hover {
-  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-}
-
-.column-content {
-  min-height: 300px;
-  padding: 0.5rem;
-  border-radius: 8px;
-  transition: all 0.2s;
-}
-
-.kanban-column {
-  background: #f0f0f0;
-  border-radius: 12px;
-  padding: 1rem;
-  min-height: 500px;
-  transition: all 0.2s;
-  border: 2px solid transparent;
-}
-
-.kanban-column.drag-over {
-  background: #e0e7ff;
-  border: 2px dashed #667eea;
-  box-shadow: 0 0 0 4px rgba(102, 126, 234, 0.1);
-}
-
-.ticket-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-}
-
-.ticket-card.in_progress { border-left-color: #f59e0b; }
-.ticket-card.clarification { border-left-color: #ef4444; }
-.ticket-card.testing { border-left-color: #10b981; }
-.ticket-card.done { border-left-color: #6b7280; }
-
-.ticket-priority {
-  font-size: 0.7rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  padding: 0.25rem 0.5rem;
-  border-radius: 4px;
-  display: inline-block;
-  margin-bottom: 0.5rem;
-}
-
-.priority-high { background: #fee2e2; color: #dc2626; }
-.priority-medium { background: #fef3c7; color: #d97706; }
-.priority-low { background: #d1fae5; color: #059669; }
-
-.ticket-title {
-  font-weight: 600;
-  margin-bottom: 0.5rem;
-  line-height: 1.4;
-}
-
-.ticket-meta {
-  font-size: 0.8rem;
-  color: #666;
-  display: flex;
-  justify-content: space-between;
-}
-
-/* Modal */
-.modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0,0,0,0.5);
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  z-index: 1000;
-}
-
-.modal-content {
-  background: white;
-  border-radius: 12px;
-  padding: 2rem;
-  max-width: 600px;
-  width: 90%;
-  max-height: 90vh;
-  overflow-y: auto;
-  box-shadow: 0 20px 40px rgba(0,0,0,0.2);
-}
-
-.modal-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 1.5rem;
-}
-
-.modal-header h2 {
-  font-size: 1.5rem;
-}
-
-.btn-close {
-  background: none;
-  border: none;
-  font-size: 1.5rem;
-  cursor: pointer;
-  color: #666;
-}
-
-/* Form */
-.form-group {
-  margin-bottom: 1rem;
-}
-
-.form-group label {
-  display: block;
-  margin-bottom: 0.5rem;
-  font-weight: 500;
-  color: #333;
-}
-
-.form-group input,
-.form-group textarea,
-.form-group select {
-  width: 100%;
-  padding: 0.75rem;
-  border: 1px solid #ddd;
-  border-radius: 8px;
-  font-size: 1rem;
-}
-
-.form-group textarea {
-  min-height: 120px;
-  resize: vertical;
-}
-
-/* Comments */
-.comments-section {
-  margin-top: 2rem;
-  padding-top: 2rem;
-  border-top: 1px solid #ddd;
-}
-
-.comment {
-  background: #f9fafb;
-  border-radius: 8px;
-  padding: 1rem;
-  margin-bottom: 1rem;
-}
-
-.comment-header {
-  display: flex;
-  justify-content: space-between;
-  margin-bottom: 0.5rem;
-  font-size: 0.9rem;
-}
-
-.comment-author {
-  font-weight: 600;
-  color: #667eea;
-}
-
-.comment-author.agent {
-  color: #10b981;
-}
-
-.comment-time {
-  color: #999;
-  font-size: 0.8rem;
-}
-
-.comment-content {
-  line-height: 1.6;
-  white-space: pre-wrap;
-}
-
-.comment-form {
-  margin-top: 1rem;
-  display: flex;
-  gap: 0.5rem;
-}
-
-.comment-form input {
-  flex: 1;
-  padding: 0.75rem;
-  border: 1px solid #ddd;
-  border-radius: 8px;
-}
-
-.comment-form button {
-  padding: 0.75rem 1.5rem;
-  background: #667eea;
-  color: white;
-  border: none;
-  border-radius: 8px;
-  cursor: pointer;
-}
-
-.agent-badge {
-  display: inline-block;
-  background: #10b981;
-  color: white;
-  font-size: 0.7rem;
-  padding: 0.2rem 0.5rem;
-  border-radius: 4px;
-  margin-left: 0.5rem;
+  -webkit-user-select: none;
 }

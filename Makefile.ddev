@@ -1,0 +1,126 @@
+# DDEV Management Makefile for Mohami KI-Mitarbeiter
+# 
+# Usage:
+#   make -f Makefile.ddev <target>
+#
+# Or copy targets to main Makefile
+
+.PHONY: help ddev-check ddev-setup ddev-up ddev-down ddev-status ddev-logs ddev-test
+
+# Default customer (can be overridden: make ddev-up CUSTOMER=kraft-shopware)
+CUSTOMER ?= alp-shopware
+
+# Colors for output
+BLUE := \033[36m
+GREEN := \033[32m
+RED := \033[31m
+YELLOW := \033[33m
+NC := \033[0m # No Color
+
+help: ## Show this help
+	@echo "$(BLUE)Mohami DDEV Management$(NC)"
+	@echo ""
+	@echo "Available targets:"
+	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  $(BLUE)%-20s$(NC) %s\n", $$1, $$2}'
+	@echo ""
+	@echo "Current customer: $(GREEN)$(CUSTOMER)$(NC)"
+
+ddev-check: ## Check if DDEV is installed
+	@echo "$(BLUE)Checking DDEV prerequisites...$(NC)"
+	@which ddev > /dev/null || (echo "$(RED)DDEV not found. Install from https://ddev.readthedocs.io$(NC)" && exit 1)
+	@ddev version | head -1
+	@echo "$(GREEN)✓ DDEV is installed$(NC)"
+
+ddev-setup: ddev-check ## Setup DDEV for customer (CUSTOMER=alp-shopware)
+	@echo "$(BLUE)Setting up DDEV for $(CUSTOMER)...$(NC)"
+	python3 scripts/setup_customer_ddev.py --customer $(CUSTOMER) --setup --start
+
+ddev-up: ## Start DDEV for customer (CUSTOMER=alp-shopware)
+	@echo "$(BLUE)Starting DDEV for $(CUSTOMER)...$(NC)"
+	python3 scripts/setup_customer_ddev.py --customer $(CUSTOMER) --start
+
+ddev-down: ## Stop DDEV for customer (CUSTOMER=alp-shopware)
+	@echo "$(BLUE)Stopping DDEV for $(CUSTOMER)...$(NC)"
+	python3 scripts/setup_customer_ddev.py --customer $(CUSTOMER) --stop
+
+ddev-delete: ## Delete DDEV project for customer (CUSTOMER=alp-shopware)
+	@echo "$(YELLOW)WARNING: This will delete the DDEV project!$(NC)"
+	@read -p "Are you sure? [y/N] " confirm && [ $$confirm = y ] || exit 1
+	python3 scripts/setup_customer_ddev.py --customer $(CUSTOMER) --stop --delete
+
+ddev-status: ## Show DDEV status for customer (CUSTOMER=alp-shopware)
+	python3 scripts/setup_customer_ddev.py --customer $(CUSTOMER) --status
+
+ddev-list: ## List all configured customers
+	python3 scripts/setup_customer_ddev.py --list
+
+ddev-logs: ## Show DDEV logs for customer (CUSTOMER=alp-shopware)
+	@echo "$(BLUE)Showing logs for $(CUSTOMER)...$(NC)"
+	cd ~/ki-data/customer-workspaces/$(CUSTOMER) && ddev logs -f
+
+ddev-exec: ## Execute command in DDEV (CUSTOMER=alp-shopware CMD="bin/console cache:clear")
+	@if [ -z "$(CMD)" ]; then \
+		echo "$(RED)Error: CMD variable not set$(NC)"; \
+		echo "Usage: make ddev-exec CUSTOMER=alp-shopware CMD='bin/console cache:clear'"; \
+		exit 1; \
+	fi
+	@echo "$(BLUE)Executing in $(CUSTOMER): $(CMD)$(NC)"
+	python3 scripts/setup_customer_ddev.py --customer $(CUSTOMER) --exec "$(CMD)"
+
+ddev-test: ## Run tests for customer (CUSTOMER=alp-shopware)
+	@echo "$(BLUE)Running tests for $(CUSTOMER)...$(NC)"
+	python3 scripts/setup_customer_ddev.py --customer $(CUSTOMER) --test
+
+ddev-sync: ## Sync customer workspace to Git
+	@echo "$(BLUE)Syncing $(CUSTOMER) to repository...$(NC)"
+	python3 scripts/setup_customer_ddev.py --customer $(CUSTOMER) --sync --message "Update from $(shell date +%Y-%m-%d)"
+
+ddev-all-up: ## Start all customer DDEV environments
+	@echo "$(BLUE)Starting all DDEV environments...$(NC)"
+	@for customer in alp-shopware kraft-shopware lupus; do \
+		echo "$(BLUE)Starting $$customer...$(NC)"; \
+		python3 scripts/setup_customer_ddev.py --customer $$customer --start || true; \
+	done
+
+ddev-all-down: ## Stop all customer DDEV environments
+	@echo "$(BLUE)Stopping all DDEV environments...$(NC)"
+	@for customer in alp-shopware kraft-shopware lupus; do \
+		echo "$(BLUE)Stopping $$customer...$(NC)"; \
+		python3 scripts/setup_customer_ddev.py --customer $$customer --stop || true; \
+	done
+
+ddev-backup: ## Backup customer database (CUSTOMER=alp-shopware)
+	@echo "$(BLUE)Backing up $(CUSTOMER) database...$(NC)"
+	mkdir -p ~/ki-data/backups/$(CUSTOMER)
+	cd ~/ki-data/customer-workspaces/$(CUSTOMER) && \
+		ddev export-db --file=~/ki-data/backups/$(CUSTOMER)/db-$(shell date +%Y%m%d-%H%M%S).sql.gz
+
+ddev-restore: ## Restore customer database from backup (CUSTOMER=alp-shopware FILE=backup.sql.gz)
+	@if [ -z "$(FILE)" ]; then \
+		echo "$(RED)Error: FILE variable not set$(NC)"; \
+		echo "Usage: make ddev-restore CUSTOMER=alp-shopware FILE=backup.sql.gz"; \
+		exit 1; \
+	fi
+	@echo "$(BLUE)Restoring $(CUSTOMER) from $(FILE)...$(NC)"
+	cd ~/ki-data/customer-workspaces/$(CUSTOMER) && \
+		ddev import-db --file=$(FILE)
+
+ddev-xdebug-on: ## Enable Xdebug for customer (CUSTOMER=alp-shopware)
+	@echo "$(BLUE)Enabling Xdebug for $(CUSTOMER)...$(NC)"
+	cd ~/ki-data/customer-workspaces/$(CUSTOMER) && ddev xdebug on
+
+ddev-xdebug-off: ## Disable Xdebug for customer (CUSTOMER=alp-shopware)
+	@echo "$(BLUE)Disabling Xdebug for $(CUSTOMER)...$(NC)"
+	cd ~/ki-data/customer-workspaces/$(CUSTOMER) && ddev xdebug off
+
+# Docker Compose integration
+ddev-compose-up: ## Start DDEV services via Docker Compose
+	@echo "$(BLUE)Starting DDEV services via Docker Compose...$(NC)"
+	docker-compose -f docker-compose.yml -f docker-compose.ddev.yml --profile ddev up -d
+
+ddev-compose-down: ## Stop DDEV services via Docker Compose
+	@echo "$(BLUE)Stopping DDEV services via Docker Compose...$(NC)"
+	docker-compose -f docker-compose.yml -f docker-compose.ddev.yml --profile ddev down
+
+ddev-compose-logs: ## Show DDEV compose logs
+	docker-compose -f docker-compose.yml -f docker-compose.ddev.yml logs -f ddev-orchestrator
