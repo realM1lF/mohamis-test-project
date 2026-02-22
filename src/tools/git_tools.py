@@ -745,6 +745,13 @@ class GitHubListFilesTool(BaseTool):
             type=ToolParameterType.STRING,
             required=False,
             default="main"
+        ),
+        ToolParameter(
+            name="path",
+            description="Optional path prefix filter (backward-compatible alias).",
+            type=ToolParameterType.STRING,
+            required=False,
+            default=""
         )
     ]
     
@@ -752,7 +759,7 @@ class GitHubListFilesTool(BaseTool):
         super().__init__()
         self.git = git_provider
     
-    async def run(self, repo: str, branch: str = "main") -> ToolResult:
+    async def run(self, repo: str, branch: str = "main", path: str = "", **kwargs) -> ToolResult:
         """List all files in repository using GitHub API."""
         if not self.git:
             return ToolResult.error_result(
@@ -797,11 +804,15 @@ class GitHubListFilesTool(BaseTool):
                 
                 files = []
                 directories = []
+                path_prefix = (path or "").strip().strip("/")
                 
                 for item in tree:
                     item_path = item.get("path", "")
                     item_type = item.get("type", "")
                     
+                    if path_prefix and item_path and not item_path.startswith(path_prefix):
+                        continue
+
                     if item_type == "blob":
                         files.append({
                             "path": item_path,

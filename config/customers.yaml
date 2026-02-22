@@ -32,10 +32,11 @@ customers:
   test-customer:
     id: test-customer
     name: "Test Customer"
+    auth_token: "${GITHUB_TOKEN}"
     repositories:
       - repo: "realM1lF/personal-ki-agents"
         default_branch: "main"
-        tech_stack: { type: "python", version: "3.11" }
+        tech_stack: { type: "php", version: "8.2", framework: "shopware" }
 
   # Beispiel: Python Projekt mit DDEV
   # python-project:

@@ -1,9 +1,11 @@
 """
 FastAPI application for Kanban Board Backend
 """
+import os
+import uuid
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 
 import yaml
 from fastapi import FastAPI, Depends, HTTPException, Query, status
@@ -11,11 +13,12 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Session
 
-from .models import Base, Ticket, Comment
+from .models import Base, Ticket, Comment, ensure_kanban_schema
 from .schemas import (
     TicketCreate, TicketUpdate, TicketResponse, TicketDetailResponse,
     CommentCreate, CommentResponse, TicketFilter, AgentQueueResponse,
-    TicketStatus, TicketPriority, WebhookTicketCreated
+    TicketStatus, TicketPriority, WebhookTicketCreated,
+    ChatMessageRequest, ChatMessageResponse,
 )
 from .crud import (
     create_ticket, get_ticket, get_ticket_with_comments, get_tickets,
@@ -31,6 +34,7 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 # Create tables
 Base.metadata.create_all(bind=engine)
+ensure_kanban_schema(engine)
 
 
 # Dependency to get DB session
@@ -40,6 +44,37 @@ def get_db():
         yield db
     finally:
         db.close()
+
+
+def _get_agent_assigned_customers(agent_id: str) -> List[str]:
+    """Return assigned customers from agents/{agent_id}/config.yaml (clients: [...])."""
+    if not agent_id:
+        return []
+    agents_dir = Path(__file__).parent.parent.parent / "agents"
+    cfg_path = agents_dir / agent_id / "config.yaml"
+    if not cfg_path.exists():
+        return []
+    try:
+        cfg_raw = yaml.safe_load(cfg_path.read_text(encoding="utf-8")) or {}
+        clients = cfg_raw.get("clients", [])
+        if isinstance(clients, list):
+            return [str(c).strip() for c in clients if str(c).strip()]
+    except Exception:
+        pass
+    return []
+
+
+def _agent_can_handle_customer(agent_id: str, customer_id: str) -> bool:
+    """Check if an agent is allowed to work for a customer.
+
+    Rule: empty/missing clients list means unrestricted (backward compatible).
+    """
+    if not agent_id or not customer_id:
+        return True
+    assigned = _get_agent_assigned_customers(agent_id)
+    if not assigned:
+        return True
+    return customer_id in assigned
 
 
 # Lifespan context manager
@@ -153,6 +188,18 @@ def update_existing_ticket(
     db: Session = Depends(get_db)
 ):
     """Update a ticket (status, assignment, etc.)"""
+    # Enforce agent/customer assignment when agent is (re)assigned via PATCH
+    if ticket_update.agent:
+        existing = get_ticket(db, ticket_id)
+        if existing and not _agent_can_handle_customer(ticket_update.agent, existing.customer):
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    f"Agent '{ticket_update.agent}' is not assigned to customer "
+                    f"'{existing.customer}'"
+                ),
+            )
+
     db_ticket = update_ticket(db, ticket_id, ticket_update)
     if not db_ticket:
         raise HTTPException(status_code=404, detail="Ticket not found")
@@ -170,6 +217,19 @@ def assign_ticket_to_agent(
     db: Session = Depends(get_db)
 ):
     """Assign a ticket to an agent (or unassign if agent is null)"""
+    if agent:
+        existing = get_ticket(db, ticket_id)
+        if not existing:
+            raise HTTPException(status_code=404, detail="Ticket not found")
+        if not _agent_can_handle_customer(agent, existing.customer):
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    f"Agent '{agent}' is not assigned to customer "
+                    f"'{existing.customer}'"
+                ),
+            )
+
     db_ticket = assign_ticket(db, ticket_id, agent)
     if not db_ticket:
         raise HTTPException(status_code=404, detail="Ticket not found")
@@ -256,6 +316,101 @@ def webhook_ticket_created(data: WebhookTicketCreated, db: Session = Depends(get
 
 
 # ============================================================================
+# Chat endpoints (freeform chat with KI agents)
+# ============================================================================
+
+# In-memory chat history: session_id -> list of {role, content}
+_chat_sessions: Dict[str, List[Dict[str, str]]] = {}
+
+
+def _get_available_agent_ids() -> List[str]:
+    """Return list of valid agent IDs from config."""
+    agents = []
+    if AGENTS_DIR.exists():
+        for agent_dir in sorted(AGENTS_DIR.iterdir()):
+            if agent_dir.is_dir() and not agent_dir.name.startswith("."):
+                if (agent_dir / "soul.md").exists():
+                    agents.append(agent_dir.name)
+    return agents if agents else ["mohami"]
+
+
+@app.post("/chat/message", response_model=ChatMessageResponse, tags=["Chat"])
+async def chat_message(request: ChatMessageRequest):
+    """Send a message to a KI agent and get a reply."""
+    agent_id = request.agent_id
+    message = request.message.strip()
+    session_id = request.session_id
+    
+    if not agent_id:
+        raise HTTPException(status_code=400, detail="agent_id required")
+    if not message:
+        raise HTTPException(status_code=400, detail="message required")
+    
+    available = _get_available_agent_ids()
+    if agent_id not in available:
+        raise HTTPException(status_code=400, detail=f"Unknown agent. Available: {available}")
+    
+    if not session_id:
+        session_id = str(uuid.uuid4())
+    
+    if session_id not in _chat_sessions:
+        _chat_sessions[session_id] = []
+    
+    history = _chat_sessions[session_id]
+    history.append({"role": "user", "content": message})
+    
+    # Build system prompt from agent config
+    try:
+        from src.agent_config.config_loader import AgentConfigLoader
+        loader = AgentConfigLoader(str(AGENTS_DIR))
+        config = loader.load_config(agent_id)
+        system_parts = [
+            config.system_prompt,
+            "",
+            "## Dein Wissen",
+            (config.knowledge or "")[:2000],
+            "",
+            "## Erinnerungen",
+            (config.memories or "")[:1500],
+        ]
+        system_prompt = "\n".join(s for s in system_parts if s)
+    except Exception as e:
+        system_prompt = f"Du bist {agent_id}, ein KI-Entwickler-Agent. Antworte auf Deutsch."
+    
+    # Call LLM
+    try:
+        from src.llm.kimi_client import KimiClient, Message
+        llm = KimiClient()
+        messages = [Message(role="system", content=system_prompt)]
+        for m in history[-20:]:
+            messages.append(Message(role=m["role"], content=m["content"]))
+        response = await llm.chat(messages=messages, temperature=0.3, max_tokens=2048)
+        reply = response.content.strip()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"LLM error: {str(e)}")
+    
+    history.append({"role": "assistant", "content": reply})
+    
+    return {"reply": reply, "session_id": session_id}
+
+
+@app.get("/chat/history/{session_id}", tags=["Chat"])
+def get_chat_history(session_id: str):
+    """Get chat history for a session."""
+    if session_id not in _chat_sessions:
+        return {"messages": []}
+    return {"messages": _chat_sessions[session_id]}
+
+
+@app.delete("/chat/session/{session_id}", tags=["Chat"])
+def clear_chat_session(session_id: str):
+    """Clear chat history for a session."""
+    if session_id in _chat_sessions:
+        del _chat_sessions[session_id]
+    return {"ok": True}
+
+
+# ============================================================================
 # Config endpoints (customers, agents)
 # ============================================================================
 
@@ -324,13 +479,29 @@ def get_agents():
                 if stripped:
                     description = stripped
                     break
+            assigned_customers = []
+            cfg_path = agent_dir / "config.yaml"
+            if cfg_path.exists():
+                try:
+                    cfg_raw = yaml.safe_load(cfg_path.read_text(encoding="utf-8")) or {}
+                    clients = cfg_raw.get("clients", [])
+                    if isinstance(clients, list):
+                        assigned_customers = [str(c).strip() for c in clients if str(c).strip()]
+                except Exception:
+                    assigned_customers = []
             agents.append({
                 "id": agent_dir.name,
                 "name": agent_dir.name.capitalize(),
                 "description": description,
+                "assigned_customers": assigned_customers,
             })
     if not agents:
-        agents.append({"id": "mohami", "name": "Mohami", "description": "KI-Entwickler"})
+        agents.append({
+            "id": "mohami",
+            "name": "Mohami",
+            "description": "KI-Entwickler",
+            "assigned_customers": [],
+        })
     return agents
 
 

@@ -6,6 +6,7 @@ import logging
 from pathlib import Path
 from typing import Dict, Optional, List
 from dataclasses import dataclass, field
+import yaml
 
 logger = logging.getLogger(__name__)
 
@@ -52,8 +53,9 @@ class AgentConfigLoader:
             customers/{id}/      - Per-customer context and tech-stack
     """
     
-    def __init__(self, base_path: str = "./agents"):
+    def __init__(self, base_path: str = "./agents", customers_base_path: str = "./customers"):
         self.base_path = Path(base_path)
+        self.customers_base_path = Path(customers_base_path)
     
     def load_config(self, agent_id: str) -> AgentConfig:
         """Load complete configuration for an agent.
@@ -196,8 +198,54 @@ class AgentConfigLoader:
             Combined content of all .md files in the customer directory,
             or empty string if directory doesn't exist.
         """
-        customer_path = self.base_path / agent_id / "customers" / customer_id
-        return self._load_directory(customer_path)
+        # New preferred path: shared customers directory (multi-agent compatible)
+        shared_customer_path = self.customers_base_path / customer_id
+        shared_context = self._load_directory(shared_customer_path)
+
+        # Legacy fallback/override path for backward compatibility
+        legacy_customer_path = self.base_path / agent_id / "customers" / customer_id
+        legacy_context = self._load_directory(legacy_customer_path)
+
+        # Merge strategy:
+        # - shared context first (global truth)
+        # - legacy context appended (agent-specific overrides/notes)
+        parts = []
+        if shared_context:
+            parts.append(shared_context)
+        if legacy_context:
+            parts.append(legacy_context)
+        return "\n\n---\n\n".join(parts)
+
+    def load_agent_runtime_config(self, agent_id: str) -> Dict:
+        """Load optional runtime config from agents/{agent_id}/config.yaml."""
+        config_path = self.base_path / agent_id / "config.yaml"
+        if not config_path.exists():
+            return {}
+        try:
+            with open(config_path, "r", encoding="utf-8") as f:
+                data = yaml.safe_load(f) or {}
+            if isinstance(data, dict):
+                return data
+            return {}
+        except Exception as e:
+            logger.warning(f"Could not read runtime config for {agent_id}: {e}")
+            return {}
+
+    def get_assigned_customers(self, agent_id: str) -> List[str]:
+        """Get list of assigned customer IDs from agent config.yaml (clients: [...])."""
+        cfg = self.load_agent_runtime_config(agent_id)
+        clients = cfg.get("clients", [])
+        if not isinstance(clients, list):
+            return []
+        return [str(c).strip() for c in clients if str(c).strip()]
+
+    def should_auto_sync_customers_on_start(self, agent_id: str) -> bool:
+        """Whether startup customer-memory sync should run for this agent."""
+        cfg = self.load_agent_runtime_config(agent_id)
+        settings = cfg.get("settings", {})
+        if not isinstance(settings, dict):
+            return True
+        return bool(settings.get("auto_sync_customers_on_start", True))
     
     def _load_markdown_file(self, path: Path) -> str:
         """Read a single markdown file, returning empty string if missing."""

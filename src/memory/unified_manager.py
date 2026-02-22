@@ -466,13 +466,15 @@ class UnifiedMemoryManager:
     def get_relevant_learnings(
         self,
         query: str,
-        n_results: int = 3
+        n_results: int = 3,
+        customer_id: Optional[str] = None
     ) -> List[Dict]:
         """Holt relevante vergangene Learnings.
         
         Sucht in:
         - Episodic Memory (ähnliche Episoden)
         - Long-Term Memory (ähnliche Solutions)
+        - Long-Term Customer Context (customer_context)
         
         Args:
             query: Suchquery
@@ -508,6 +510,23 @@ class UnifiedMemoryManager:
                     "content": sol["content"],
                     "distance": sol.get("distance")
                 })
+
+            # Zusätzlich: customer_context (aus Startup-Sync)
+            customer_ctx = self.long_term.search(
+                query=query,
+                memory_type="customer_context",
+                limit=n_results
+            )
+            for ctx in customer_ctx:
+                meta = ctx.get("metadata", {})
+                if customer_id and meta.get("customer_id") != customer_id:
+                    continue
+                results.append({
+                    "source": "customer_context",
+                    "ticket_id": meta.get("customer_id", "unknown"),
+                    "content": ctx.get("content", ""),
+                    "distance": ctx.get("distance"),
+                })
         
         return results[:n_results]
     
@@ -521,7 +540,8 @@ class UnifiedMemoryManager:
     def build_agent_context(
         self,
         ticket_id: str,
-        ticket_description: str = ""
+        ticket_description: str = "",
+        customer_id: Optional[str] = None
     ) -> Dict[str, Any]:
         """Baut vollständigen Kontext für einen Agent.
         
@@ -550,7 +570,7 @@ class UnifiedMemoryManager:
         # 3. Relevante Learnings
         if ticket_description:
             context["relevant_learnings"] = self.get_relevant_learnings(
-                ticket_description, n_results=3
+                ticket_description, n_results=3, customer_id=customer_id
             )
         
         # 4. Recent Learnings

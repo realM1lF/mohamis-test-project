@@ -51,6 +51,13 @@ Examples:
             required=True
         ),
         ToolParameter(
+            name="repository",
+            description="Optional repository slug (e.g., 'owner/repo') for customers with multiple repositories",
+            type=ToolParameterType.STRING,
+            required=False,
+            default=""
+        ),
+        ToolParameter(
             name="command",
             description="Command to execute in the workspace",
             type=ToolParameterType.STRING,
@@ -83,7 +90,7 @@ Examples:
         super().__init__()
         self.workspace_manager = get_workspace_manager()
     
-    async def run(self, customer_id: str, command: str, 
+    async def run(self, customer_id: str, repository: str = "", command: str = "", 
                   working_dir: str = "", use_ddev: bool = True,
                   timeout: int = 300) -> ToolResult:
         """Execute a command in the customer's workspace.
@@ -103,7 +110,7 @@ Examples:
         
         try:
             # Check if workspace exists
-            workspace = self.workspace_manager.get_workspace(customer_id)
+            workspace = self.workspace_manager.get_workspace(customer_id, repository or None)
             if not workspace:
                 return ToolResult.error_result(
                     error=f"Customer '{customer_id}' not found. "
@@ -122,6 +129,7 @@ Examples:
             # Execute command
             success, stdout, stderr = self.workspace_manager.execute_command(
                 customer_id=customer_id,
+                repository=repository or None,
                 command=command,
                 timeout=timeout,
                 cwd=working_dir if working_dir else None,
@@ -185,6 +193,13 @@ Use this BEFORE working on a customer project.
             required=True
         ),
         ToolParameter(
+            name="repository",
+            description="Optional repository slug (e.g., 'owner/repo') for customers with multiple repositories",
+            type=ToolParameterType.STRING,
+            required=False,
+            default=""
+        ),
+        ToolParameter(
             name="branch",
             description="Optional branch to clone (uses default from config if not specified)",
             type=ToolParameterType.STRING,
@@ -204,7 +219,7 @@ Use this BEFORE working on a customer project.
         super().__init__()
         self.workspace_manager = get_workspace_manager()
     
-    async def run(self, customer_id: str, branch: str = "", 
+    async def run(self, customer_id: str, repository: str = "", branch: str = "", 
                   start_ddev: bool = True) -> ToolResult:
         """Setup workspace for a customer.
         
@@ -222,6 +237,7 @@ Use this BEFORE working on a customer project.
         try:
             success, message = self.workspace_manager.setup_workspace(
                 customer_id=customer_id,
+                repository=repository or None,
                 branch=branch if branch else None,
                 start_ddev=start_ddev
             )
@@ -229,7 +245,7 @@ Use this BEFORE working on a customer project.
             execution_time = (time.time() - start_time) * 1000
             
             if success:
-                workspace = self.workspace_manager.get_workspace(customer_id)
+                workspace = self.workspace_manager.get_workspace(customer_id, repository or None)
                 return ToolResult.success_result(
                     data={
                         "customer_id": customer_id,
@@ -276,14 +292,21 @@ Shows:
             description="Customer ID (e.g., 'test-customer')",
             type=ToolParameterType.STRING,
             required=True
-        )
+        ),
+        ToolParameter(
+            name="repository",
+            description="Optional repository slug (e.g., 'owner/repo') for customers with multiple repositories",
+            type=ToolParameterType.STRING,
+            required=False,
+            default=""
+        ),
     ]
     
     def __init__(self):
         super().__init__()
         self.workspace_manager = get_workspace_manager()
     
-    async def run(self, customer_id: str) -> ToolResult:
+    async def run(self, customer_id: str, repository: str = "") -> ToolResult:
         """Get workspace status.
         
         Args:
@@ -296,7 +319,7 @@ Shows:
         start_time = time.time()
         
         try:
-            status = self.workspace_manager.get_status(customer_id)
+            status = self.workspace_manager.get_status(customer_id, repository or None)
             
             execution_time = (time.time() - start_time) * 1000
             
@@ -338,14 +361,21 @@ DDEV runs inside the workspace directory, not as a separate container.
             description="Customer ID (e.g., 'test-customer')",
             type=ToolParameterType.STRING,
             required=True
-        )
+        ),
+        ToolParameter(
+            name="repository",
+            description="Optional repository slug (e.g., 'owner/repo') for customers with multiple repositories",
+            type=ToolParameterType.STRING,
+            required=False,
+            default=""
+        ),
     ]
     
     def __init__(self):
         super().__init__()
         self.workspace_manager = get_workspace_manager()
     
-    async def run(self, customer_id: str) -> ToolResult:
+    async def run(self, customer_id: str, repository: str = "") -> ToolResult:
         """Start DDEV for a customer.
         
         Args:
@@ -358,7 +388,7 @@ DDEV runs inside the workspace directory, not as a separate container.
         start_time = time.time()
         
         try:
-            success, message = self.workspace_manager.start_ddev(customer_id)
+            success, message = self.workspace_manager.start_ddev(customer_id, repository or None)
             
             execution_time = (time.time() - start_time) * 1000
             
@@ -401,6 +431,13 @@ class DDEVStopTool(BaseTool):
             required=True
         ),
         ToolParameter(
+            name="repository",
+            description="Optional repository slug (e.g., 'owner/repo') for customers with multiple repositories",
+            type=ToolParameterType.STRING,
+            required=False,
+            default=""
+        ),
+        ToolParameter(
             name="delete",
             description="Delete DDEV containers and volumes (default: false)",
             type=ToolParameterType.BOOLEAN,
@@ -413,7 +450,7 @@ class DDEVStopTool(BaseTool):
         super().__init__()
         self.workspace_manager = get_workspace_manager()
     
-    async def run(self, customer_id: str, delete: bool = False) -> ToolResult:
+    async def run(self, customer_id: str, repository: str = "", delete: bool = False) -> ToolResult:
         """Stop DDEV for a customer.
         
         Args:
@@ -427,7 +464,9 @@ class DDEVStopTool(BaseTool):
         start_time = time.time()
         
         try:
-            success, message = self.workspace_manager.stop_ddev(customer_id, remove_data=delete)
+            success, message = self.workspace_manager.stop_ddev(
+                customer_id, repository=repository or None, remove_data=delete
+            )
             
             execution_time = (time.time() - start_time) * 1000
             
@@ -479,6 +518,13 @@ Use this tool to verify code changes.
             required=True
         ),
         ToolParameter(
+            name="repository",
+            description="Optional repository slug (e.g., 'owner/repo') for customers with multiple repositories",
+            type=ToolParameterType.STRING,
+            required=False,
+            default=""
+        ),
+        ToolParameter(
             name="test_command",
             description="Custom test command (auto-detected if not provided)",
             type=ToolParameterType.STRING,
@@ -505,7 +551,7 @@ Use this tool to verify code changes.
         super().__init__()
         self.workspace_manager = get_workspace_manager()
     
-    async def run(self, customer_id: str, test_command: str = "",
+    async def run(self, customer_id: str, repository: str = "", test_command: str = "",
                   use_ddev: bool = True, timeout: int = 600) -> ToolResult:
         """Run tests in the customer's workspace.
         
@@ -524,6 +570,7 @@ Use this tool to verify code changes.
         try:
             success, stdout, stderr = self.workspace_manager.run_tests(
                 customer_id=customer_id,
+                repository=repository or None,
                 test_command=test_command if test_command else None,
                 use_ddev=use_ddev,
                 timeout=timeout
@@ -600,6 +647,13 @@ IMPORTANT: Review your changes before syncing!
             required=True
         ),
         ToolParameter(
+            name="repository",
+            description="Optional repository slug (e.g., 'owner/repo') for customers with multiple repositories",
+            type=ToolParameterType.STRING,
+            required=False,
+            default=""
+        ),
+        ToolParameter(
             name="commit_message",
             description="Commit message describing the changes",
             type=ToolParameterType.STRING,
@@ -618,7 +672,7 @@ IMPORTANT: Review your changes before syncing!
         super().__init__()
         self.workspace_manager = get_workspace_manager()
     
-    async def run(self, customer_id: str, commit_message: str,
+    async def run(self, customer_id: str, repository: str = "", commit_message: str = "",
                   branch: str = "") -> ToolResult:
         """Sync workspace changes to repository.
         
@@ -636,6 +690,7 @@ IMPORTANT: Review your changes before syncing!
         try:
             success, message = self.workspace_manager.sync_to_repo(
                 customer_id=customer_id,
+                repository=repository or None,
                 branch=branch if branch else None,
                 commit_message=commit_message
             )
@@ -685,6 +740,13 @@ Updates the local workspace with changes from the remote.
             required=True
         ),
         ToolParameter(
+            name="repository",
+            description="Optional repository slug (e.g., 'owner/repo') for customers with multiple repositories",
+            type=ToolParameterType.STRING,
+            required=False,
+            default=""
+        ),
+        ToolParameter(
             name="branch",
             description="Branch to pull (uses current if not specified)",
             type=ToolParameterType.STRING,
@@ -697,7 +759,7 @@ Updates the local workspace with changes from the remote.
         super().__init__()
         self.workspace_manager = get_workspace_manager()
     
-    async def run(self, customer_id: str, branch: str = "") -> ToolResult:
+    async def run(self, customer_id: str, repository: str = "", branch: str = "") -> ToolResult:
         """Pull changes from remote.
         
         Args:
@@ -713,6 +775,7 @@ Updates the local workspace with changes from the remote.
         try:
             success, message = self.workspace_manager.pull_changes(
                 customer_id=customer_id,
+                repository=repository or None,
                 branch=branch if branch else None
             )
             

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Card, CardContent, Typography, Chip, Box, Avatar } from '@mui/material';
+import { Card, CardContent, Typography, Chip, Box, Avatar, CircularProgress } from '@mui/material';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import SmartToyIcon from '@mui/icons-material/SmartToy';
@@ -48,6 +48,7 @@ function TicketCard({ ticket, onClick }) {
 
   const priorityColor = getPriorityColor(ticket.priority);
   const statusColor = getStatusColor(ticket.status);
+  const isAgentWorking = Boolean(ticket.agent_working_since);
 
   return (
     <Card
@@ -62,7 +63,8 @@ function TicketCard({ ticket, onClick }) {
         mb: 1.5,
         cursor: isDragging ? 'grabbing' : 'grab',
         borderLeft: `4px solid ${statusColor.main}`,
-        backgroundColor: '#FDFCFF',
+        backgroundColor: isAgentWorking ? '#F0F8FF' : '#FDFCFF',
+        border: isAgentWorking ? '1px solid #99CFFF' : '1px solid transparent',
         '&:hover': {
           transform: isDragging ? 'none' : 'translateY(-2px)',
         },
@@ -155,6 +157,23 @@ function TicketCard({ ticket, onClick }) {
               }}
             >
               {ticket.agent === 'mohami' ? 'Mohami' : ticket.agent}
+            </Typography>
+          </Box>
+        )}
+
+        {isAgentWorking && (
+          <Box
+            sx={{
+              mt: 1,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 0.75,
+              color: '#006495',
+            }}
+          >
+            <CircularProgress size={12} thickness={7} sx={{ color: '#006495' }} />
+            <Typography variant="labelSmall" sx={{ fontWeight: 600 }}>
+              Agent arbeitet...
             </Typography>
           </Box>
         )}

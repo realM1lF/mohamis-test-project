@@ -45,6 +45,7 @@ class WorkspaceStatus(Enum):
 class CustomerWorkspace:
     """Represents a customer workspace configuration."""
     customer_id: str
+    repository: Optional[str]
     name: str
     git_provider: str  # github, bitbucket, gitlab
     repo_url: str
@@ -76,6 +77,7 @@ class CustomerWorkspace:
         """Convert workspace to dictionary."""
         return {
             "customer_id": self.customer_id,
+            "repository": self.repository,
             "name": self.name,
             "git_provider": self.git_provider,
             "repo_url": self.repo_url,
@@ -110,6 +112,7 @@ class WorkspaceManager:
         self.config_path = Path(config_path)
         self.config = self._load_config()
         self.workspaces: Dict[str, CustomerWorkspace] = {}
+        self.default_workspace_for_customer: Dict[str, str] = {}
         self.repo_manager = get_repository_manager()
         self._load_workspaces()
         
@@ -121,47 +124,111 @@ class WorkspaceManager:
         
         with open(self.config_path, 'r') as f:
             return yaml.safe_load(f) or {}
+
+    def _normalize_repo_ref(self, repo_value: str, provider: str) -> str:
+        """Normalize repo references like owner/repo to cloneable URLs."""
+        if not repo_value:
+            return ""
+        if repo_value.startswith(("https://", "git@")):
+            return repo_value
+        if "/" in repo_value:
+            if provider == "bitbucket":
+                return f"https://bitbucket.org/{repo_value}"
+            if provider == "gitlab":
+                return f"https://gitlab.com/{repo_value}"
+            return f"https://github.com/{repo_value}"
+        return repo_value
+
+    def _workspace_key(self, customer_id: str, repository: Optional[str]) -> str:
+        if not repository:
+            return customer_id
+        safe = repository.replace("/", "__")
+        return f"{customer_id}__{safe}"
+
+    def _resolve_auth_token(self, token_value: Optional[str]) -> Optional[str]:
+        """Support plain tokens and ${ENV_VAR} references."""
+        if not token_value:
+            return None
+        token_value = token_value.strip()
+        if token_value.startswith("${") and token_value.endswith("}"):
+            env_name = token_value[2:-1].strip()
+            return os.getenv(env_name) or None
+        return token_value
+
+    def _resolve_workspace(self, customer_id: str, repository: Optional[str] = None) -> Optional[CustomerWorkspace]:
+        """Resolve workspace by customer+repository, with fallback to customer default."""
+        if repository:
+            ws = self.workspaces.get(self._workspace_key(customer_id, repository))
+            if ws:
+                return ws
+        default_key = self.default_workspace_for_customer.get(customer_id)
+        if default_key:
+            return self.workspaces.get(default_key)
+        return self.workspaces.get(customer_id)
     
     def _load_workspaces(self):
         """Load existing workspaces from configuration."""
         customers = self.config.get('customers', {})
         base_workspace_path = Path("~/ki-data/workspaces").expanduser().resolve()
-        
+        self.workspaces = {}
+        self.default_workspace_for_customer = {}
+
         for customer_id, customer_config in customers.items():
-            # Support both old and new config format
-            workspace_path = customer_config.get('workspace_path')
-            if workspace_path:
-                workspace_path = Path(workspace_path).expanduser().resolve()
-            else:
-                workspace_path = base_workspace_path / customer_id
-            
-            # Get tech stack info
-            tech_stack = customer_config.get('tech_stack', {})
-            if not tech_stack:
-                # Legacy format support
-                tech_stack = {
-                    "type": customer_config.get('shopware', {}).get('version', 'unknown'),
-                    "php_version": customer_config.get('ddev', {}).get('php_version', '8.2'),
-                }
-            
-            workspace = CustomerWorkspace(
-                customer_id=customer_id,
-                name=customer_config.get('name', customer_config.get('display_name', customer_id)),
-                git_provider=customer_config.get('git_provider', 'github'),
-                repo_url=customer_config.get('repo_url', ''),
-                has_ddev=customer_config.get('has_ddev', customer_config.get('ddev', {}).get('enabled', True)),
-                default_branch=customer_config.get('default_branch', 'main'),
-                workspace_path=workspace_path,
-                tech_stack=tech_stack,
-                auth_token=customer_config.get('auth_token'),
-            )
-            
-            # Check if workspace already exists
-            if workspace.workspace_path.exists():
-                git_dir = workspace.workspace_path / ".git"
-                if git_dir.exists():
+            provider = customer_config.get('git_provider', 'github')
+            customer_name = customer_config.get('name', customer_config.get('display_name', customer_id))
+            repositories = customer_config.get('repositories', [])
+            resolved_auth_token = self._resolve_auth_token(customer_config.get('auth_token'))
+            if not resolved_auth_token and provider == "github":
+                resolved_auth_token = os.getenv("GITHUB_TOKEN")
+
+            # Legacy single-repo fallback
+            if not repositories:
+                repo_url = customer_config.get('repo_url', '')
+                if repo_url:
+                    repositories = [{
+                        "repo": repo_url,
+                        "default_branch": customer_config.get('default_branch', 'main'),
+                        "tech_stack": customer_config.get('tech_stack', {}),
+                    }]
+
+            for idx, repo_cfg in enumerate(repositories):
+                if isinstance(repo_cfg, str):
+                    repo_cfg = {"repo": repo_cfg}
+
+                repo_ref = str(repo_cfg.get("repo", "")).strip()
+                repo_url = self._normalize_repo_ref(repo_ref, provider)
+                repo_branch = repo_cfg.get('default_branch', customer_config.get('default_branch', 'main'))
+                repo_tech = repo_cfg.get('tech_stack', customer_config.get('tech_stack', {}))
+                if not repo_tech:
+                    repo_tech = {
+                        "type": customer_config.get('shopware', {}).get('version', 'unknown'),
+                        "php_version": customer_config.get('ddev', {}).get('php_version', '8.2'),
+                    }
+
+                workspace_path = customer_config.get('workspace_path')
+                if workspace_path:
+                    workspace_path = Path(workspace_path).expanduser().resolve()
+                else:
+                    # Separate workspace per repository to avoid collisions.
+                    repo_slug = repo_ref.split("/")[-1] if repo_ref else f"repo-{idx+1}"
+                    workspace_path = base_workspace_path / customer_id / repo_slug
+
+                workspace = CustomerWorkspace(
+                    customer_id=customer_id,
+                    repository=repo_ref or None,
+                    name=customer_name,
+                    git_provider=provider,
+                    repo_url=repo_url,
+                    has_ddev=customer_config.get('has_ddev', customer_config.get('ddev', {}).get('enabled', True)),
+                    default_branch=repo_branch,
+                    workspace_path=workspace_path,
+                    tech_stack=repo_tech,
+                    auth_token=resolved_auth_token,
+                )
+
+                # Check if workspace already exists
+                if workspace.workspace_path.exists() and (workspace.workspace_path / ".git").exists():
                     workspace.status = WorkspaceStatus.READY
-                    # Check DDEV status if DDEV is configured
                     if workspace.has_ddev_config:
                         ddev_status = self._check_ddev_status(workspace.workspace_path)
                         if ddev_status == "running":
@@ -169,8 +236,11 @@ class WorkspaceManager:
                             workspace.ddev_started = True
                         elif ddev_status == "stopped":
                             workspace.status = WorkspaceStatus.DDEV_STOPPED
-            
-            self.workspaces[customer_id] = workspace
+
+                key = self._workspace_key(customer_id, workspace.repository)
+                self.workspaces[key] = workspace
+                if customer_id not in self.default_workspace_for_customer:
+                    self.default_workspace_for_customer[customer_id] = key
     
     def _check_ddev_status(self, workspace_path: Path) -> str:
         """Check if DDEV is running in the workspace.
@@ -204,9 +274,9 @@ class WorkspaceManager:
             logger.debug(f"Could not check DDEV status: {e}")
         return "unknown"
     
-    def get_workspace(self, customer_id: str) -> Optional[CustomerWorkspace]:
-        """Get a workspace by customer ID."""
-        return self.workspaces.get(customer_id)
+    def get_workspace(self, customer_id: str, repository: Optional[str] = None) -> Optional[CustomerWorkspace]:
+        """Get a workspace by customer and optional repository."""
+        return self._resolve_workspace(customer_id, repository)
     
     def list_workspaces(self) -> List[CustomerWorkspace]:
         """List all configured workspaces."""
@@ -215,6 +285,7 @@ class WorkspaceManager:
     def setup_workspace(
         self, 
         customer_id: str, 
+        repository: Optional[str] = None,
         repo_url: Optional[str] = None,
         branch: Optional[str] = None,
         start_ddev: bool = True
@@ -235,22 +306,30 @@ class WorkspaceManager:
         Returns:
             Tuple of (success, message)
         """
-        workspace = self.workspaces.get(customer_id)
+        workspace = self._resolve_workspace(customer_id, repository)
         if not workspace:
             # Try to create from URL directly
             if repo_url:
                 workspace = CustomerWorkspace(
                     customer_id=customer_id,
+                    repository=repository,
                     name=customer_id,
                     git_provider="github",
                     repo_url=repo_url,
                     has_ddev=False,
                     default_branch=branch or "main",
-                    workspace_path=self.repo_manager.get_workspace_path(customer_id),
+                    workspace_path=self.repo_manager.get_workspace_path(
+                        self._workspace_key(customer_id, repository)
+                    ),
                 )
-                self.workspaces[customer_id] = workspace
+                key = self._workspace_key(customer_id, repository)
+                self.workspaces[key] = workspace
+                self.default_workspace_for_customer.setdefault(customer_id, key)
             else:
-                return False, f"Customer '{customer_id}' not found in configuration"
+                return False, (
+                    f"Customer '{customer_id}' not found in configuration"
+                    + (f" for repository '{repository}'" if repository else "")
+                )
         
         if workspace.status == WorkspaceStatus.INITIALIZING:
             return False, f"Workspace for '{customer_id}' is already being initialized"
@@ -270,7 +349,7 @@ class WorkspaceManager:
             workspace.status = WorkspaceStatus.CLONING
             
             success, message = self.repo_manager.clone_repo(
-                customer_id=customer_id,
+                customer_id=self._workspace_key(workspace.customer_id, workspace.repository),
                 repo_url=clone_url,
                 branch=branch or workspace.default_branch,
                 auth_token=workspace.auth_token
@@ -287,7 +366,7 @@ class WorkspaceManager:
             if has_ddev and start_ddev:
                 # Start DDEV in the cloned repository
                 logger.info(f"Starting DDEV for {customer_id}")
-                ddev_success, ddev_message = self.start_ddev(customer_id)
+                ddev_success, ddev_message = self.start_ddev(customer_id, workspace.repository)
                 if ddev_success:
                     workspace.status = WorkspaceStatus.DDEV_RUNNING
                     workspace.ddev_started = True
@@ -311,7 +390,7 @@ class WorkspaceManager:
             logger.error(f"Error setting up workspace for {customer_id}: {e}")
             return False, f"Error setting up workspace: {str(e)}"
     
-    def start_ddev(self, customer_id: str) -> Tuple[bool, str]:
+    def start_ddev(self, customer_id: str, repository: Optional[str] = None) -> Tuple[bool, str]:
         """Start the DDEV environment for a customer.
         
         DDEV runs IN the cloned repository, not as a separate container.
@@ -322,7 +401,7 @@ class WorkspaceManager:
         Returns:
             Tuple of (success, message)
         """
-        workspace = self.workspaces.get(customer_id)
+        workspace = self._resolve_workspace(customer_id, repository)
         if not workspace:
             return False, f"Customer '{customer_id}' not found"
         
@@ -361,7 +440,7 @@ class WorkspaceManager:
             workspace.status = WorkspaceStatus.ERROR
             return False, f"Error starting DDEV: {str(e)}"
     
-    def stop_ddev(self, customer_id: str, remove_data: bool = False) -> Tuple[bool, str]:
+    def stop_ddev(self, customer_id: str, repository: Optional[str] = None, remove_data: bool = False) -> Tuple[bool, str]:
         """Stop the DDEV environment for a customer.
         
         Args:
@@ -371,7 +450,7 @@ class WorkspaceManager:
         Returns:
             Tuple of (success, message)
         """
-        workspace = self.workspaces.get(customer_id)
+        workspace = self._resolve_workspace(customer_id, repository)
         if not workspace:
             return False, f"Customer '{customer_id}' not found"
         
@@ -406,6 +485,7 @@ class WorkspaceManager:
     def execute_command(
         self, 
         customer_id: str, 
+        repository: Optional[str],
         command: str, 
         timeout: int = 300,
         cwd: Optional[str] = None,
@@ -426,7 +506,7 @@ class WorkspaceManager:
         Returns:
             Tuple of (success, stdout, stderr)
         """
-        workspace = self.workspaces.get(customer_id)
+        workspace = self._resolve_workspace(customer_id, repository)
         if not workspace:
             return False, "", f"Customer '{customer_id}' not found"
         
@@ -437,7 +517,7 @@ class WorkspaceManager:
         
         # Use DDEV if available and running
         if use_ddev and workspace.has_ddev_config and workspace.ddev_started:
-            return self.execute_in_ddev(customer_id, command, timeout, cwd)
+            return self.execute_in_ddev(customer_id, repository, command, timeout, cwd)
         
         # Execute locally
         try:
@@ -463,6 +543,7 @@ class WorkspaceManager:
     def execute_in_ddev(
         self, 
         customer_id: str, 
+        repository: Optional[str],
         command: str, 
         timeout: int = 300,
         cwd: Optional[str] = None
@@ -478,13 +559,13 @@ class WorkspaceManager:
         Returns:
             Tuple of (success, stdout, stderr)
         """
-        workspace = self.workspaces.get(customer_id)
+        workspace = self._resolve_workspace(customer_id, repository)
         if not workspace:
             return False, "", f"Customer '{customer_id}' not found"
         
         # Ensure DDEV is running
         if not workspace.ddev_started:
-            success, msg = self.start_ddev(customer_id)
+            success, msg = self.start_ddev(customer_id, repository)
             if not success:
                 return False, "", f"DDEV not running and could not start: {msg}"
         
@@ -517,6 +598,7 @@ class WorkspaceManager:
     def sync_to_repo(
         self, 
         customer_id: str, 
+        repository: Optional[str] = None,
         branch: Optional[str] = None,
         commit_message: Optional[str] = None
     ) -> Tuple[bool, str]:
@@ -530,18 +612,18 @@ class WorkspaceManager:
         Returns:
             Tuple of (success, message)
         """
-        workspace = self.workspaces.get(customer_id)
+        workspace = self._resolve_workspace(customer_id, repository)
         if not workspace:
             return False, f"Customer '{customer_id}' not found"
         
         # Use RepositoryManager to push changes
         return self.repo_manager.push_changes(
-            customer_id=customer_id,
+            customer_id=self._workspace_key(workspace.customer_id, workspace.repository),
             branch=branch or workspace.default_branch,
             message=commit_message
         )
     
-    def pull_changes(self, customer_id: str, branch: Optional[str] = None) -> Tuple[bool, str]:
+    def pull_changes(self, customer_id: str, repository: Optional[str] = None, branch: Optional[str] = None) -> Tuple[bool, str]:
         """Pull latest changes from remote repository.
         
         Args:
@@ -551,9 +633,14 @@ class WorkspaceManager:
         Returns:
             Tuple of (success, message)
         """
-        return self.repo_manager.pull_changes(customer_id, branch)
+        workspace = self._resolve_workspace(customer_id, repository)
+        if not workspace:
+            return False, f"Customer '{customer_id}' not found"
+        return self.repo_manager.pull_changes(
+            self._workspace_key(workspace.customer_id, workspace.repository), branch
+        )
     
-    def get_repo_info(self, customer_id: str) -> Optional[Dict[str, Any]]:
+    def get_repo_info(self, customer_id: str, repository: Optional[str] = None) -> Optional[Dict[str, Any]]:
         """Get repository information for a customer.
         
         Args:
@@ -562,9 +649,14 @@ class WorkspaceManager:
         Returns:
             Repository info dictionary or None
         """
-        return self.repo_manager.get_repo_info(customer_id)
+        workspace = self._resolve_workspace(customer_id, repository)
+        if not workspace:
+            return None
+        return self.repo_manager.get_repo_info(
+            self._workspace_key(workspace.customer_id, workspace.repository)
+        )
     
-    def get_status(self, customer_id: str) -> Dict[str, Any]:
+    def get_status(self, customer_id: str, repository: Optional[str] = None) -> Dict[str, Any]:
         """Get detailed status of a workspace.
         
         Args:
@@ -573,13 +665,14 @@ class WorkspaceManager:
         Returns:
             Dictionary with status information
         """
-        workspace = self.workspaces.get(customer_id)
+        workspace = self._resolve_workspace(customer_id, repository)
         if not workspace:
             return {"error": f"Customer '{customer_id}' not found"}
         
         status = {
             "customer_id": customer_id,
             "name": workspace.name,
+            "repository": workspace.repository,
             "workspace_path": str(workspace.workspace_path),
             "status": workspace.status.value,
             "exists": workspace.workspace_path.exists(),
@@ -595,7 +688,9 @@ class WorkspaceManager:
             status["ddev_status"] = ddev_status
         
         # Get repository info
-        repo_info = self.repo_manager.get_repo_info(customer_id)
+        repo_info = self.repo_manager.get_repo_info(
+            self._workspace_key(workspace.customer_id, workspace.repository)
+        )
         if repo_info:
             status["repository"] = repo_info
         
@@ -604,6 +699,7 @@ class WorkspaceManager:
     def run_tests(
         self, 
         customer_id: str, 
+        repository: Optional[str] = None,
         test_command: Optional[str] = None,
         use_ddev: bool = True,
         timeout: int = 600
@@ -619,7 +715,7 @@ class WorkspaceManager:
         Returns:
             Tuple of (success, stdout, stderr)
         """
-        workspace = self.workspaces.get(customer_id)
+        workspace = self._resolve_workspace(customer_id, repository)
         if not workspace:
             return False, "", f"Customer '{customer_id}' not found"
         
@@ -635,12 +731,13 @@ class WorkspaceManager:
         
         return self.execute_command(
             customer_id=customer_id,
+            repository=repository,
             command=test_command,
             timeout=timeout,
             use_ddev=use_ddev
         )
     
-    def cleanup_workspace(self, customer_id: str, remove_all: bool = False) -> Tuple[bool, str]:
+    def cleanup_workspace(self, customer_id: str, repository: Optional[str] = None, remove_all: bool = False) -> Tuple[bool, str]:
         """Clean up a workspace.
         
         Args:
@@ -650,18 +747,20 @@ class WorkspaceManager:
         Returns:
             Tuple of (success, message)
         """
-        workspace = self.workspaces.get(customer_id)
+        workspace = self._resolve_workspace(customer_id, repository)
         if not workspace:
             return False, f"Customer '{customer_id}' not found"
         
         try:
             # Stop DDEV first if running
             if workspace.ddev_started:
-                self.stop_ddev(customer_id, remove_data=True)
+                self.stop_ddev(customer_id, repository=repository, remove_data=True)
             
             if remove_all:
                 # Remove entire workspace using RepositoryManager
-                return self.repo_manager.cleanup_repo(customer_id)
+                return self.repo_manager.cleanup_repo(
+                    self._workspace_key(workspace.customer_id, workspace.repository)
+                )
             else:
                 # Just clean temporary files
                 for cleanup_path in ['var/cache', 'var/log', '__pycache__', '.pytest_cache']:

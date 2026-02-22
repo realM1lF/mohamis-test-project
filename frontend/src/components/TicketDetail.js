@@ -18,6 +18,7 @@ import {
   IconButton,
   Grid,
   Paper,
+  CircularProgress,
 } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
 import EditIcon from '@mui/icons-material/Edit';
@@ -25,6 +26,8 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import SmartToyIcon from '@mui/icons-material/SmartToy';
 import PersonIcon from '@mui/icons-material/Person';
 import SendIcon from '@mui/icons-material/Send';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { statusColors, priorityColors } from '../theme';
 
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
@@ -52,6 +55,8 @@ function TicketDetail({ ticket, onClose, onAddComment, onEdit, onDelete }) {
 
   useEffect(() => {
     fetchTicketDetails();
+    const interval = setInterval(fetchTicketDetails, 3000);
+    return () => clearInterval(interval);
   }, [ticket.id]);
 
   const fetchTicketDetails = async () => {
@@ -78,9 +83,10 @@ function TicketDetail({ ticket, onClose, onAddComment, onEdit, onDelete }) {
     return date.toLocaleString('de-DE');
   };
 
-  const statusColor = statusColors[ticket.status] || statusColors.backlog;
-  const priorityColor = priorityColors[ticket.priority] || priorityColors.medium;
   const details = ticketDetails || ticket;
+  const statusColor = statusColors[details.status] || statusColors.backlog;
+  const priorityColor = priorityColors[details.priority] || priorityColors.medium;
+  const isAgentWorking = Boolean(details.agent_working_since);
 
   return (
     <Dialog
@@ -180,6 +186,20 @@ function TicketDetail({ ticket, onClose, onAddComment, onEdit, onDelete }) {
                     fontWeight: 500,
                     '& .MuiChip-icon': {
                       color: '#65587B',
+                    },
+                  }}
+                />
+              )}
+              {isAgentWorking && (
+                <Chip
+                  icon={<CircularProgress size={14} thickness={7} sx={{ color: '#006495 !important' }} />}
+                  label="Agent arbeitet..."
+                  sx={{
+                    backgroundColor: '#CBE6FF',
+                    color: '#00344F',
+                    fontWeight: 600,
+                    '& .MuiChip-icon': {
+                      color: '#006495',
                     },
                   }}
                 />
@@ -371,16 +391,11 @@ function TicketDetail({ ticket, onClose, onAddComment, onEdit, onDelete }) {
                           </Box>
                         }
                         secondary={
-                          <Typography
-                            variant="bodyMedium"
-                            sx={{
-                              color: '#1A1C1E',
-                              whiteSpace: 'pre-wrap',
-                              mt: 0.5,
-                            }}
-                          >
-                            {comment.content}
-                          </Typography>
+                          <Box sx={{ mt: 0.5, color: '#1A1C1E', '& p': { margin: '0 0 0.5em 0' }, '& ul': { margin: '0.25em 0', paddingLeft: 2 }, '& li': { marginBottom: 0.25 }, '& strong': { fontWeight: 700 }, '& code': { fontFamily: 'monospace', fontSize: '0.9em', backgroundColor: '#ECEEF1', px: 0.5, borderRadius: 1 } }}>
+                            <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                              {comment.content}
+                            </ReactMarkdown>
+                          </Box>
                         }
                       />
                     </ListItem>

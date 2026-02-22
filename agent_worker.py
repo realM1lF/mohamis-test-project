@@ -21,8 +21,9 @@ Environment variables:
 import asyncio
 import os
 import sys
+import yaml
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Optional, Any
 
 from dotenv import load_dotenv
@@ -33,9 +34,9 @@ load_dotenv(Path(__file__).parent / ".env", override=True)
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from src.kanban.models import Base
+from src.kanban.models import Base, ensure_kanban_schema
 from src.kanban.crud_async import TicketCRUD, CommentCRUD
-from src.kanban.schemas import TicketUpdate
+from src.kanban.schemas import TicketUpdate, CommentCreate
 from src.git_provider import GitHubProvider
 from src.llm import KimiClient
 from src.agents.agent_types import AgentResult
@@ -43,7 +44,7 @@ from src.agents.agent_types import AgentResult
 # ============================================================================
 # CONFIG SWITCH: Intelligent Agent vs Legacy
 # ============================================================================
-USE_INTELLIGENT_AGENT = os.getenv("USE_INTELLIGENT_AGENT", "false").lower() == "true"
+USE_INTELLIGENT_AGENT = os.getenv("USE_INTELLIGENT_AGENT", "true").lower() == "true"
 
 # Track import errors for logging
 INTELLIGENT_ERROR: Optional[str] = None
@@ -96,6 +97,7 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 # Create tables
 Base.metadata.create_all(bind=engine)
+ensure_kanban_schema(engine)
 
 
 class AgentWorker:
@@ -126,6 +128,7 @@ class AgentWorker:
         self.agent = self._create_agent()
         self.running = False
         self._processing: set = set()
+        self.stale_working_minutes = int(os.getenv("AGENT_STALE_WORKING_MINUTES", "15"))
     
     def _create_agent(self):
         """Create the appropriate agent based on mode."""
@@ -176,6 +179,100 @@ class AgentWorker:
             ticket_crud=self.ticket_crud,
             comment_crud=self.comment_crud,
         )
+
+    def _get_assigned_customers(self, agent_id: str) -> list[str]:
+        """Read clients list from agents/{agent_id}/config.yaml.
+
+        Empty/missing list means unrestricted for backward compatibility.
+        """
+        if not agent_id:
+            return []
+        cfg_path = Path(__file__).parent / "agents" / agent_id / "config.yaml"
+        if not cfg_path.exists():
+            return []
+        try:
+            raw = yaml.safe_load(cfg_path.read_text(encoding="utf-8")) or {}
+            clients = raw.get("clients", [])
+            if isinstance(clients, list):
+                return [str(c).strip() for c in clients if str(c).strip()]
+        except Exception:
+            pass
+        return []
+
+    def _agent_can_process_customer(self, agent_id: str, customer_id: str) -> bool:
+        if not agent_id or not customer_id:
+            return True
+        assigned = self._get_assigned_customers(agent_id)
+        if not assigned:
+            return True
+        return customer_id in assigned
+
+    async def _reject_unassigned_ticket(self, ticket):
+        """Move invalid agent/customer assignments to clarification with system comment."""
+        msg = (
+            f"⚠️ Agent '{ticket.agent}' ist nicht für Kunde '{ticket.customer}' zugewiesen. "
+            "Bitte passenden KI-Mitarbeiter wählen oder clients-Zuordnung in "
+            f"agents/{ticket.agent}/config.yaml ergänzen."
+        )
+        try:
+            comments = await self.comment_crud.get_by_ticket(ticket.id)
+            already = any(
+                c.author == "system" and "nicht für Kunde" in (c.content or "")
+                for c in comments
+            )
+            if not already:
+                await self.comment_crud.create(
+                    ticket.id,
+                    CommentCreate(author="system", content=msg),
+                )
+            await self.ticket_crud.update(ticket.id, TicketUpdate(status="clarification"))
+        except Exception as e:
+            print(f"   ⚠️ Could not move invalid assignment to clarification: {e}")
+
+    async def _set_agent_working(self, ticket_id: str, is_working: bool):
+        """Set/clear activity marker so UI can show agent progress."""
+        try:
+            await self.ticket_crud.update(
+                ticket_id,
+                TicketUpdate(
+                    agent_working_since=(datetime.utcnow() if is_working else None)
+                ),
+            )
+        except Exception as e:
+            print(f"   ⚠️ Could not update agent activity marker for {ticket_id[:8]}: {e}")
+
+    def _is_stale_working(self, ticket) -> bool:
+        if not getattr(ticket, "agent_working_since", None):
+            return False
+        cutoff = datetime.utcnow() - timedelta(minutes=max(1, self.stale_working_minutes))
+        return ticket.agent_working_since < cutoff
+
+    async def _mark_processing_error(self, ticket_id: str, message: str):
+        """Move ticket to clarification with a user-visible system message."""
+        try:
+            await self.comment_crud.create(
+                ticket_id,
+                CommentCreate(
+                    author="system",
+                    content=(
+                        "⚠️ Verarbeitung wurde abgebrochen. "
+                        f"{message}\n\nBitte Ticket erneut auf 'In Progress' setzen."
+                    ),
+                ),
+            )
+            await self.ticket_crud.update(ticket_id, TicketUpdate(status="clarification"))
+        except Exception as e:
+            print(f"   ⚠️ Could not mark processing error for {ticket_id[:8]}: {e}")
+
+    def _is_user_reply(self, author: str, agent_id: str) -> bool:
+        """True only for human/user replies, not agent or system automation."""
+        if not author:
+            return False
+        if author == "system":
+            return False
+        if agent_id and author.startswith(agent_id):
+            return False
+        return True
     
     async def run(self):
         """Main worker loop."""
@@ -239,11 +336,32 @@ class AgentWorker:
                     continue
                 if ticket.id in self._processing:
                     continue
+                if not self._agent_can_process_customer(ticket.agent, ticket.customer):
+                    print(
+                        f"\n🚫 Invalid assignment: ticket {ticket.id[:8]} agent={ticket.agent} "
+                        f"customer={ticket.customer}"
+                    )
+                    await self._reject_unassigned_ticket(ticket)
+                    continue
+                if ticket.agent_working_since and not self._is_stale_working(ticket):
+                    # Another worker instance may still be actively processing this ticket.
+                    continue
+                if ticket.agent_working_since and self._is_stale_working(ticket):
+                    print(
+                        f"\n♻️ Recover stale ticket: {ticket.id[:8]} "
+                        f"(older than {self.stale_working_minutes}m)"
+                    )
+                    await self._set_agent_working(ticket.id, False)
                 
                 # Check if agent already posted a comment (= already started working)
                 comments = await self.comment_crud.get_by_ticket(ticket.id)
                 agent_comments = [c for c in comments if c.author == ticket.agent]
-                if agent_comments:
+                last_comment = comments[0] if comments else None
+                if agent_comments and (
+                    not last_comment
+                    or last_comment.author == "system"
+                    or last_comment.author.startswith(ticket.agent)
+                ):
                     continue
                 
                 self._processing.add(ticket.id)
@@ -258,9 +376,22 @@ class AgentWorker:
                     "description": ticket.description,
                     "customer_id": ticket.customer,
                     "repository": ticket.repository,
+                    "branch": ticket.active_branch,
+                    "metadata": {
+                        "active_pr_url": ticket.active_pr_url,
+                        "active_pr_number": ticket.active_pr_number,
+                    },
                 }
-                result = await self.agent.process_ticket(ticket.id, ticket_data)
-                self._processing.discard(ticket.id)
+                await self._set_agent_working(ticket.id, True)
+                try:
+                    result = await self.agent.process_ticket(ticket.id, ticket_data)
+                except Exception as e:
+                    print(f"   ❌ Processing failed: {e}")
+                    await self._mark_processing_error(ticket.id, f"Fehler: {e}")
+                    continue
+                finally:
+                    self._processing.discard(ticket.id)
+                    await self._set_agent_working(ticket.id, False)
                 
                 if isinstance(result, AgentResult):
                     if result.success:
@@ -271,6 +402,10 @@ class AgentWorker:
                         await self.ticket_crud.update(ticket.id, TicketUpdate(status="clarification"))
                     else:
                         print(f"   ❌ Failed: {result.message}")
+                        await self._mark_processing_error(
+                            ticket.id,
+                            result.message or "Unbekannter Fehler beim Bearbeiten.",
+                        )
                 else:
                     print("   ✅ Complete → Testing")
                     await self.ticket_crud.update(ticket.id, TicketUpdate(status="testing"))
@@ -285,12 +420,19 @@ class AgentWorker:
                     continue
                 if ticket.id in self._processing:
                     continue
+                if not self._agent_can_process_customer(ticket.agent, ticket.customer):
+                    print(
+                        f"\n🚫 Invalid assignment: ticket {ticket.id[:8]} agent={ticket.agent} "
+                        f"customer={ticket.customer}"
+                    )
+                    await self._reject_unassigned_ticket(ticket)
+                    continue
                 
                 comments = await self.comment_crud.get_by_ticket(ticket.id)
                 if comments and len(comments) > 0:
                     last_comment = comments[0]
                     
-                    if not last_comment.author.startswith(ticket.agent):
+                    if self._is_user_reply(last_comment.author, ticket.agent):
                         self._processing.add(ticket.id)
                         print(f"\n💬 Clarification answered: {ticket.id[:8]}")
                         print(f"   User: {last_comment.author}")
@@ -307,9 +449,22 @@ class AgentWorker:
                             ),
                             "customer_id": ticket.customer,
                             "repository": ticket.repository,
+                            "branch": ticket.active_branch,
+                            "metadata": {
+                                "active_pr_url": ticket.active_pr_url,
+                                "active_pr_number": ticket.active_pr_number,
+                            },
                         }
-                        result = await self.agent.process_ticket(ticket.id, ticket_data)
-                        self._processing.discard(ticket.id)
+                        await self._set_agent_working(ticket.id, True)
+                        try:
+                            result = await self.agent.process_ticket(ticket.id, ticket_data)
+                        except Exception as e:
+                            print(f"   ❌ Clarification processing failed: {e}")
+                            await self._mark_processing_error(ticket.id, f"Fehler: {e}")
+                            continue
+                        finally:
+                            self._processing.discard(ticket.id)
+                            await self._set_agent_working(ticket.id, False)
                         
                         if isinstance(result, AgentResult):
                             if result.success:
@@ -320,6 +475,10 @@ class AgentWorker:
                                 await self.ticket_crud.update(ticket.id, TicketUpdate(status="clarification"))
                             else:
                                 print(f"   ❌ Failed: {result.message}")
+                                await self._mark_processing_error(
+                                    ticket.id,
+                                    result.message or "Unbekannter Fehler beim Bearbeiten.",
+                                )
                         else:
                             print("   ✅ Complete → Testing")
                             await self.ticket_crud.update(ticket.id, TicketUpdate(status="testing"))
@@ -332,13 +491,20 @@ class AgentWorker:
                     continue
                 if ticket.id in self._processing:
                     continue
+                if not self._agent_can_process_customer(ticket.agent, ticket.customer):
+                    print(
+                        f"\n🚫 Invalid assignment: ticket {ticket.id[:8]} agent={ticket.agent} "
+                        f"customer={ticket.customer}"
+                    )
+                    await self._reject_unassigned_ticket(ticket)
+                    continue
                 
                 comments = await self.comment_crud.get_by_ticket(ticket.id)
                 if not comments:
                     continue
                 
                 last_comment = comments[0]
-                if last_comment.author.startswith(ticket.agent):
+                if not self._is_user_reply(last_comment.author, ticket.agent):
                     continue
                 
                 self._processing.add(ticket.id)
@@ -358,9 +524,22 @@ class AgentWorker:
                     ),
                     "customer_id": ticket.customer,
                     "repository": ticket.repository,
+                    "branch": ticket.active_branch,
+                    "metadata": {
+                        "active_pr_url": ticket.active_pr_url,
+                        "active_pr_number": ticket.active_pr_number,
+                    },
                 }
-                result = await self.agent.process_ticket(ticket.id, ticket_data)
-                self._processing.discard(ticket.id)
+                await self._set_agent_working(ticket.id, True)
+                try:
+                    result = await self.agent.process_ticket(ticket.id, ticket_data)
+                except Exception as e:
+                    print(f"   ❌ Re-processing failed: {e}")
+                    await self._mark_processing_error(ticket.id, f"Fehler: {e}")
+                    continue
+                finally:
+                    self._processing.discard(ticket.id)
+                    await self._set_agent_working(ticket.id, False)
                 
                 if isinstance(result, AgentResult):
                     if result.success:
@@ -371,6 +550,10 @@ class AgentWorker:
                         await self.ticket_crud.update(ticket.id, TicketUpdate(status="clarification"))
                     else:
                         print(f"   ❌ Failed: {result.message}")
+                        await self._mark_processing_error(
+                            ticket.id,
+                            result.message or "Unbekannter Fehler beim Bearbeiten.",
+                        )
                 else:
                     print("   ✅ Complete → Testing")
                     await self.ticket_crud.update(ticket.id, TicketUpdate(status="testing"))
@@ -388,6 +571,23 @@ class AgentWorker:
         # Get ticket data for passing to agent
         ticket = await self.ticket_crud.get(ticket_id)
         if ticket:
+            if not self._agent_can_process_customer("mohami", ticket.customer):
+                print(
+                    f"🚫 Agent 'mohami' is not assigned to customer '{ticket.customer}'. "
+                    "Moving ticket to clarification."
+                )
+                await self.ticket_crud.update(ticket_id, TicketUpdate(status="clarification"))
+                await self.comment_crud.create(
+                    ticket_id,
+                    CommentCreate(
+                        author="system",
+                        content=(
+                            "⚠️ Agent 'mohami' ist nicht für diesen Kunden zugewiesen. "
+                            "Bitte clients-Zuordnung in agents/mohami/config.yaml prüfen."
+                        ),
+                    ),
+                )
+                return
             # Claim ticket before processing
             await self.ticket_crud.update(ticket_id, TicketUpdate(
                 status="in_progress",
@@ -399,8 +599,17 @@ class AgentWorker:
                 "description": ticket.description,
                 "customer_id": ticket.customer,
                 "repository": ticket.repository,
+                "branch": ticket.active_branch,
+                "metadata": {
+                    "active_pr_url": ticket.active_pr_url,
+                    "active_pr_number": ticket.active_pr_number,
+                },
             }
-            result = await self.agent.process_ticket(ticket_id, ticket_data)
+            await self._set_agent_working(ticket_id, True)
+            try:
+                result = await self.agent.process_ticket(ticket_id, ticket_data)
+            finally:
+                await self._set_agent_working(ticket_id, False)
             
             # Handle result if available (IntelligentAgent returns AgentResult)
             if isinstance(result, AgentResult):
@@ -412,6 +621,10 @@ class AgentWorker:
                     await self.ticket_crud.update(ticket.id, TicketUpdate(status="clarification"))
                 else:
                     print(f"❌ Failed: {result.message}")
+                    await self._mark_processing_error(
+                        ticket.id,
+                        result.message or "Unbekannter Fehler beim Bearbeiten.",
+                    )
             else:
                 print("✅ Complete → Testing")
                 await self.ticket_crud.update(ticket.id, TicketUpdate(status="testing"))

@@ -65,10 +65,15 @@ function NewTicketModal({ onClose, onCreate }) {
       setAgents(a);
       if (c.length === 1) {
         const repos = c[0].repositories || [];
+        const matchingAgents = a.filter(agent => {
+          const assigned = agent.assigned_customers || [];
+          return assigned.length === 0 || assigned.includes(c[0].id);
+        });
         setFormData(prev => ({
           ...prev,
           customer: c[0].id,
           repository: repos.length === 1 ? repos[0].repo : '',
+          agent: matchingAgents.length === 1 ? matchingAgents[0].id : prev.agent,
         }));
       }
       if (a.length === 1) {
@@ -80,6 +85,12 @@ function NewTicketModal({ onClose, onCreate }) {
 
   const selectedCustomer = customers.find(c => c.id === formData.customer);
   const availableRepos = selectedCustomer?.repositories || [];
+  const filteredAgents = formData.customer
+    ? agents.filter(a => {
+        const assigned = a.assigned_customers || [];
+        return assigned.length === 0 || assigned.includes(formData.customer);
+      })
+    : agents;
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -96,6 +107,13 @@ function NewTicketModal({ onClose, onCreate }) {
         const cust = customers.find(c => c.id === value);
         if (cust?.repositories?.length === 1) {
           next.repository = cust.repositories[0].repo;
+        }
+        const matchingAgents = agents.filter(a => {
+          const assigned = a.assigned_customers || [];
+          return assigned.length === 0 || assigned.includes(value);
+        });
+        if (!matchingAgents.find(a => a.id === next.agent)) {
+          next.agent = matchingAgents.length === 1 ? matchingAgents[0].id : '';
         }
       }
       return next;
@@ -194,7 +212,7 @@ function NewTicketModal({ onClose, onCreate }) {
                 <InputLabel id="agent-label" sx={inputLabelSx}>KI-Mitarbeiter</InputLabel>
                 <Select labelId="agent-label" name="agent"
                   value={formData.agent} onChange={handleChange} label="KI-Mitarbeiter">
-                  {agents.map(a => (
+                  {filteredAgents.map(a => (
                     <MenuItem key={a.id} value={a.id}>
                       {a.name}{a.description ? ` — ${a.description}` : ''}
                     </MenuItem>

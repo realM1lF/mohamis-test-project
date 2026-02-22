@@ -254,3 +254,53 @@ class GitHubProvider(GitProvider):
         """List all branches."""
         data = await self._request("GET", f"/repos/{repo}/branches?per_page=100")
         return [branch["name"] for branch in data]
+
+    async def get_pr_checks_summary(self, repo: str, pr_number: int) -> Dict:
+        """Get a lightweight summary of CI/check status for a PR head commit.
+
+        Returns a dict with:
+        - conclusion: success | failure | pending | unknown | ...
+        - details: provider raw counters
+        """
+        try:
+            pr = await self._request("GET", f"/repos/{repo}/pulls/{pr_number}")
+            head_sha = pr.get("head", {}).get("sha")
+            if not head_sha:
+                return {"conclusion": "unknown", "details": {"reason": "missing_head_sha"}}
+
+            check_runs = await self._request(
+                "GET", f"/repos/{repo}/commits/{head_sha}/check-runs"
+            )
+            status_data = await self._request(
+                "GET", f"/repos/{repo}/commits/{head_sha}/status"
+            )
+
+            runs = check_runs.get("check_runs", []) if isinstance(check_runs, dict) else []
+            state = status_data.get("state", "unknown") if isinstance(status_data, dict) else "unknown"
+
+            has_failure = any(
+                (r.get("conclusion") or "").lower() in {"failure", "cancelled", "timed_out", "action_required"}
+                for r in runs
+            ) or state == "failure"
+            has_pending = any(
+                (r.get("status") or "").lower() != "completed" for r in runs
+            ) or state == "pending"
+
+            if has_failure:
+                conclusion = "failure"
+            elif has_pending:
+                conclusion = "pending"
+            elif runs or state == "success":
+                conclusion = "success"
+            else:
+                conclusion = "unknown"
+
+            return {
+                "conclusion": conclusion,
+                "details": {
+                    "status_state": state,
+                    "total_check_runs": len(runs),
+                },
+            }
+        except Exception as e:
+            return {"conclusion": "unknown", "details": {"error": str(e)}}

@@ -1,201 +1,78 @@
-# 📊 Projekt-Analyse: Mohami KI-Mitarbeiter System
+# Analyse: PR-Quality-Gate-Fehler (Ticket #a851e2ab)
 
-**Datum:** 21. Februar 2026  
-**Phase:** 2.1 Abgeschlossen (Integration)  
-**Analyst:** Lead Developer (Kimi)
+## Was passiert ist
 
----
+- Ticket: Shopware-Plugin „Top-Bar“ mit „Hallo Welt“
+- Agent hat Branch + Commits erstellt (laut Gate: branch_ok, commit_ok)
+- Quality Gate schlug fehl: **„Pull Request wurde nicht erfolgreich erstellt“**
+- → pr_ok war `false`
 
-## 🎯 Zusammenfassung
+## Ablauf-Logik (Code-Trace)
 
-Wir haben in ~2 Tagen ein komplexes Multi-Agent System mit folgenden Komponenten gebaut:
+1. **Quality Gate** läuft nur, wenn der Workflow in `COMPLETED` endet.
+2. `COMPLETED` wird nur erreicht, wenn **alle** Schritte des Plans erfolgreich waren (`all_success = True`).
+3. Wenn ein Schritt fehlschlägt → `break` → keine weiteren Schritte → `all_success = False` → Übergang zu REASONING oder ERROR, **kein** Quality Gate.
+4. **Folgerung:** Der Plan wurde vollständig ausgeführt, alle Schritte waren erfolgreich – aber es gab **keinen** erfolgreichen `github_create_pr`-Schritt in den Ergebnissen.
 
-| Bereich | Status | Bewertung |
-|---------|--------|-----------|
-| **Architektur** | ✅ V2 Implementiert | Tool-Use + Memory + Workspace |
-| **Frontend** | ✅ M3 UI | Material Design 3 funktioniert |
-| **Backend** | ✅ API | FastAPI + SQLite läuft |
-| **Agent** | ⚠️ Noch nicht gestartet | IntelligentAgent wartet auf Deployment |
-| **Größe** | 🚨 KRITISCH | 12.7GB Backend-Image! |
+## Mögliche Ursachen
 
----
+### 1. Plan enthielt keinen PR-Schritt (sehr wahrscheinlich)
 
-## ✅ Was wir haben (Features)
-
-### 1. Tool-Use Framework
-- **8 Tools** implementiert (File, Git, DDEV, Code)
-- KI entscheidet selbst welche Tools zu nutzen
-- ORPA Workflow mit Tool-Loop
-
-### 2. 4-Schichten Gedächtnis
-- Short-Term (In-Memory)
-- Session (Redis)
-- Long-Term (ChromaDB)
-- Episodic (SQLite/PostgreSQL)
-
-### 3. Material Design 3
-- Komplette UI Überarbeitung
-- M3 Farbschema, Cards, Dialogs
-- FAB Button, Top App Bar
-
-### 4. DDEV Architektur V2
-- Clone-to-Workspace Pattern
-- RepositoryManager für GitHub/Bitbucket
-- Dynamische Kunden-Setup
-
-### 5. Agenten-Templates
-- `agents/TEMPLATE/` für neue Agents
-- `scripts/create_agent.py`
-- Mohami mit Knowledge + Memories
-
----
-
-## 🚨 Kritische Probleme
-
-### Problem 1: Image-Größe (BLOCKIEREND)
+Für ein Shopware-Plugin erzeugt das LLM typischerweise viele `github_write_file`-Schritte (z.B. composer.json, Plugin-Klasse, services.xml, Twig, CSS, …). Der Plan kann so aussehen:
 
 ```
-Backend:   12.7 GB  ← 🚨 SEHR KRITISCH
-Frontend:   2.15 GB  ← ⚠️ Zu groß
-Agent:      4.45 GB  ← ⚠️ Zu groß
-────────────────────────
-Gesamt:    ~20 GB   ← NICHT DEPLOYBAR
+Step 1: github_get_repo_info
+Step 2: github_create_branch
+Step 3: github_write_file (composer.json)
+Step 4: github_write_file (Plugin.php)
+Step 5: github_write_file (services.xml)
+Step 6: github_write_file (Twig-Template)
+Step 7: github_write_file (CSS)
+Step 8: github_create_pr   ← fehlt evtl.
 ```
 
-**Ursache:**
-- `sentence-transformers` → PyTorch (915 MB)
-- `chromadb` → ONNX Runtime + Abhängigkeiten
-- Frontend `node_modules` → 596 MB (nicht optimiert)
+**Warum fehlt der PR-Schritt?**
 
-**Auswirkung:**
-- Deploy auf Server unmöglich (zu groß)
-- Build dauert 30+ Minuten
-- Speicherplatz auf Dev-Maschine knapp
+- **Truncation:** `llm_max_tokens = 4096` – bei langen Plänen kann die Antwort abgeschnitten werden, der letzte Schritt (PR) fällt weg.
+- **LLM-Omission:** Bei vielen Schritten vergisst das Modell manchmal den PR-Schritt am Ende.
+- **Parse-Fehler:** Wenn das JSON nicht sauber geparst wird, greift ein Regex-Fallback; der könnte bei komplexem JSON Schritte verlieren.
 
----
+### 2. PR-Schritt war im Plan, aber Tool-Aufruf schlug fehl
 
-### Problem 2: Agent Worker nicht gestartet
+- Dann wäre `all_success = False` und der Workflow hätte **nicht** `COMPLETED` erreicht.
+- Das Quality Gate würde in diesem Fall gar nicht laufen.
+- **→ Passt nicht** zum beobachteten Verhalten (Gate lief, pr_ok = false).
 
-Der neue `IntelligentAgent` wurde nie live getestet.
-Wir wissen nicht ob die Integration wirklich funktioniert.
+### 3. GitHub-API-Fehler
 
----
+- Wenn `create_pr` einen Fehler wirft (außer „already exists“), gibt das Tool `success=False` zurück.
+- Dann würde der Agent abbrechen und nicht `COMPLETED` erreichen.
+- **→ Passt nicht** zum beobachteten Verhalten.
 
-### Problem 3: Frontend nicht geprüft
+## Warum früher keine Probleme?
 
-Obwohl Frontend läuft (Port 3000), wurde Material Design 3 
-vom Nutzer noch nicht visuell bestätigt.
+- Frühere Tickets waren vermutlich einfacher (weniger Dateien, kürzerer Plan).
+- Kürzerer Plan → weniger Truncation, PR-Schritt bleibt erhalten.
+- Oder: früher wurde der Fallback-Plan genutzt (`_create_standard_github_plan`), der immer einen PR-Schritt enthält.
 
----
+## Empfohlene Fixes (ohne Workaround)
 
-## 📋 Was funktioniert (getestet)
+1. **Plan-Validierung:** Nach dem Parsen prüfen, ob `github_create_pr` im Plan vorkommt. Wenn nicht und es ein Repo-Ticket ist → PR-Schritt automatisch anhängen.
+2. **Fallback-Plan:** Wenn der geparste Plan keinen PR-Schritt hat, den letzten Schritt durch `github_create_pr` ergänzen (analog zu `_create_standard_github_plan`).
+3. **Token-Limit:** Für die Planning-Phase `max_tokens` erhöhen (z.B. 6144 oder 8192), um Truncation bei langen Plänen zu reduzieren.
+4. **Prompt-Verstärkung:** Im Planning-Prompt explizit fordern: „Der letzte Schritt MUSS github_create_pr sein, wenn Repository-Änderungen geplant sind.“
 
-| Test | Ergebnis |
-|------|----------|
-| Backend API | ✅ `/tickets` gibt Daten zurück |
-| Frontend | ✅ Port 3000 erreichbar (HTTP 200) |
-| Redis | ✅ Läuft |
-| Syntax | ✅ Alle Python-Dateien kompilieren |
-| Integration Tests | ✅ 100+ Tests geschrieben (nicht alle ausgeführt) |
+## Was der Workaround (require_pr_for_success: false) macht
 
----
-
-## 🤔 Entscheidungs-Optionen
-
-### Option A: Optimieren (EMPFOHLEN)
-**Dauer:** 1-2 Tage  
-**Ziel:** Images auf <1GB reduzieren
-
-**Maßnahmen:**
-1. PyTorch durch `onnxruntime` ersetzen
-2. Embeddings über OpenRouter API (nicht lokal)
-3. Multi-Stage Docker Build
-4. Frontend `node_modules` aus Container raus
-
-**Vorteil:** System wird deploybar
-**Nachteil:** 1-2 Tage Verzögerung
+- Er verhindert nur, dass das Gate bei fehlendem PR fehlschlägt.
+- Die eigentliche Ursache (fehlender PR-Schritt im Plan) bleibt ungelöst.
+- Sinnvoll als Übergang, aber die oben genannten Fixes sollten umgesetzt werden.
 
 ---
 
-### Option B: Weiterbauen (Riskant)
-**Dauer:** Weiter wie geplant  
-**Ziel:** Multi-File/Plugin Feature bauen
+## Umgesetzter Fix (2026-02-22)
 
-**Problem:** 
-- Wir bauen auf instabilem Fundament (12GB Images)
-- Je mehr Code, desto schwerer zu optimieren später
-- Server-Deployment unmöglich
-
-**Empfehlung:** ❌ NICHT empfohlen
-
----
-
-### Option C: Live-Test (Schnell)
-**Dauer:** 30 Minuten  
-**Ziel:** Agent starten und ein Ticket testen
-
-**Vorteil:** 
-- Schnelle Validierung ob IntelligentAgent funktioniert
-- Frontend visuell prüfen
-
-**Nachteil:**
-- Ändert nichts am 12GB Problem
-- Nur temporärer Test
-
----
-
-### Option D: Architektur-Review (Strategisch)
-**Dauer:** 2-3 Stunden  
-**Ziel:** Gemeinsam mit PO (realM1lF) entscheiden
-
-**Fragen:**
-1. Ist PyTorch wirklich nötig oder reicht API für Embeddings?
-2. Soll der Agent lokal oder auf Server laufen?
-3. Was ist die Priorität: Features oder Stabilität?
-4. Budget für OpenRouter API (statt lokaler Embeddings)?
-
----
-
-## 🎯 Meine Empfehlung als Lead
-
-**SOFORT:** Option C (Live-Test)
-- Agent starten, ein Ticket erstellen
-- Frontend visuell prüfen
-- 30 Minuten Investition
-
-**DANN:** Option A (Optimieren)
-- PyTorch rauswerfen
-- Auf API-basierte Embeddings umstellen
-- Images auf <500MB reduzieren
-
-**DANACH:** Weiter mit Phase 2.2 (Bugfix) & Phase 3 (Multi-File)
-
----
-
-## 📊 Metriken
-
-| Metrik | Wert | Ziel |
-|--------|------|------|
-| Code-Zeilen | 18,014 Python | - |
-| Docker Images | ~20 GB | < 1 GB |
-| Build-Zeit | 30+ Min | < 5 Min |
-| Tests | 100+ | Alle ✅ |
-| Features | MVP+ | Production |
-
----
-
-## ❓ Offene Fragen für Product Owner
-
-1. **PyTorch vs API:** Sollen Embeddings lokal (PyTorch) oder über API (OpenRouter) berechnet werden?
-
-2. **Deployment-Ziel:** Lokal auf deinem Rechner oder auf einem Server?
-
-3. **Budget:** Wie viel Token-Budget pro Monat für OpenRouter API?
-
-4. **Priorität:** Erst stabilisieren oder erst Features bauen?
-
-5. **Frontend:** Ist Material Design 3 so okay oder willst du Änderungen?
-
----
-
-**Entscheidung erforderlich!**
+**`_ensure_pr_step_if_repo_changes`** in `intelligent_agent.py`:
+- Nach dem Plan-Parsing wird geprüft: Hat der Plan Repo-Änderungen (create_branch/write_file), aber keinen `github_create_pr`?
+- Wenn ja → PR-Step wird automatisch angehängt (Branch/Base aus Plan oder Kontext).
+- Behebt LLM-Omission und Truncation bei komplexen Plänen.

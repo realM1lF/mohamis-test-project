@@ -60,6 +60,10 @@ class TicketUpdate(BaseModel):
     description: Optional[str] = Field(None, min_length=1)
     status: Optional[TicketStatus] = None
     agent: Optional[str] = None
+    active_branch: Optional[str] = None
+    active_pr_url: Optional[str] = None
+    active_pr_number: Optional[str] = None
+    agent_working_since: Optional[datetime] = None
     priority: Optional[TicketPriority] = None
 
 
@@ -71,6 +75,10 @@ class TicketResponse(TicketBase):
     id: str
     status: TicketStatus
     agent: Optional[str]
+    active_branch: Optional[str] = None
+    active_pr_url: Optional[str] = None
+    active_pr_number: Optional[str] = None
+    agent_working_since: Optional[datetime] = None
     created_at: datetime
     updated_at: datetime
     comments_count: int = 0
@@ -107,3 +115,15 @@ class AgentQueueResponse(BaseModel):
     agent_id: str
     tickets: List[TicketResponse]
     count: int
+
+
+# Chat schemas
+class ChatMessageRequest(BaseModel):
+    agent_id: str = Field(..., min_length=1)
+    message: str = Field(..., min_length=1)
+    session_id: Optional[str] = None
+
+
+class ChatMessageResponse(BaseModel):
+    reply: str
+    session_id: str

@@ -25,8 +25,51 @@ memory:
   episodic: true        # PostgreSQL
   git_cache: true       # Redis + GitHub API
 
+clients:
+  - test-customer
+
 settings:
   auto_mode: true
+  auto_sync_customers_on_start: true
   poll_interval: 5
   max_concurrent_tickets: 1
   require_confirmation: false
+
+# Per-agent runtime tuning for IntelligentAgent.
+# These values override global env defaults for this agent only.
+runtime:
+  llm_timeout_seconds: 240
+  memory_sync_background: true
+
+  semantic_identity_limit: 6
+  semantic_memory_limit: 12
+  semantic_customer_limit: 4
+  semantic_hit_chars: 1440
+  memories_fallback_chars: 20000
+
+  retrieval_rewrite_loops: 3
+  retrieval_min_score: 40
+  max_evidence_gate_failures: 3
+  max_consecutive_llm_timeouts: 5
+  compact_tools_prompt: false
+  # PR optional: Erfolg auch ohne PR, wenn Branch + Commit vorhanden
+  require_pr_for_success: false
+
+  kimi_max_retries: 2
+  kimi_timeout_connect: 10
+  kimi_timeout_read: 360
+  kimi_timeout_write: 30
+  kimi_timeout_pool: 10
+
+# Externe Doku-Quellen, die per Daily-Cron in memories/ aktualisiert werden.
+# target ist relativ zu agents/<agent_id>/
+doc_sources:
+  - url: https://developer.shopware.com/llms-full.txt
+    target: memories/systems/Shopware 6/SHOPWARE_OFFICIAL_LLM_DOCS_FULL.txt
+    enabled: true
+    timeout: 60
+
+  - url: https://shopify.dev/llms.txt
+    target: memories/systems/Shopify/SHOPIFY_OFFICIAL_LLM_DOCS.txt
+    enabled: true
+    timeout: 30

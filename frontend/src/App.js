@@ -5,6 +5,7 @@ import {
   Typography, 
   Fab, 
   Box, 
+  Button,
   CircularProgress,
   Container,
 } from '@mui/material';
@@ -14,6 +15,7 @@ import KanbanBoard from './components/KanbanBoard';
 import TicketDetail from './components/TicketDetail';
 import NewTicketModal from './components/NewTicketModal';
 import EditTicketModal from './components/EditTicketModal';
+import ChatModal from './components/ChatModal';
 
 const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000';
 
@@ -22,6 +24,7 @@ function App() {
   const [selectedTicket, setSelectedTicket] = useState(null);
   const [editingTicket, setEditingTicket] = useState(null);
   const [showNewTicket, setShowNewTicket] = useState(false);
+  const [showChat, setShowChat] = useState(false);
   const [loading, setLoading] = useState(true);
 
   // Fetch tickets
@@ -248,6 +251,20 @@ function App() {
           
           <Box sx={{ flexGrow: 1 }} />
           
+          <Button
+            startIcon={<SmartToyIcon />}
+            onClick={() => setShowChat(true)}
+            sx={{
+              color: '#006495',
+              textTransform: 'none',
+              fontWeight: 600,
+              mr: 2,
+              '&:hover': { backgroundColor: '#CBE6FF' },
+            }}
+          >
+            Chat
+          </Button>
+          
           <Typography 
             variant="bodyMedium" 
             sx={{ 
@@ -284,9 +301,8 @@ function App() {
         </Container>
       </Box>
 
-      {/* Material Design 3 FAB */}
+      {/* FAB: Neues Ticket */}
       <Fab
-        color="primary"
         aria-label="Neues Ticket"
         onClick={() => setShowNewTicket(true)}
         sx={{
@@ -294,14 +310,13 @@ function App() {
           bottom: 24,
           right: 24,
           backgroundColor: '#65587B',
-          '&:hover': {
-            backgroundColor: '#4A3F5C',
-          },
+          color: 'white',
+          '&:hover': { backgroundColor: '#4A3F5C' },
           boxShadow: '0px 4px 8px rgba(0,0,0,0.15), 0px 1px 3px rgba(0,0,0,0.1)',
         }}
       >
-        <AddIcon />
-      </Fab>
+          <AddIcon />
+        </Fab>
 
       {/* Modals */}
       {selectedTicket && (
@@ -315,6 +330,10 @@ function App() {
           }}
           onDelete={() => handleDeleteTicket(selectedTicket.id)}
         />
+      )}
+
+      {showChat && (
+        <ChatModal onClose={() => setShowChat(false)} />
       )}
 
       {showNewTicket && (

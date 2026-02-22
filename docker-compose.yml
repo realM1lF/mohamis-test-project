@@ -24,11 +24,13 @@ services:
       - ./src:/app/src
       - ~/ki-data/chroma:/app/data/chroma  # Außerhalb des Repos!
       - ./agents:/app/agents:ro
+      - ./customers:/app/customers:ro
       - ./config:/app/config:ro
     environment:
       - DATABASE_URL=sqlite:///./kanban.db
       - REDIS_URL=redis://redis:6379
       - CHROMA_PERSIST_DIR=/app/data/chroma
+      - OPEN_ROUTER_API_KEY=${OPEN_ROUTER_API_KEY}
     depends_on:
       - redis
     restart: unless-stopped
@@ -43,6 +45,8 @@ services:
     container_name: ki-frontend
     ports:
       - "3000:3000"
+    volumes:
+      - ./frontend/src:/app/src:ro
     environment:
       - REACT_APP_API_URL=http://localhost:8000
     depends_on:
@@ -64,6 +68,8 @@ services:
       - ~/ki-data/chroma:/app/data/chroma  # Außerhalb des Repos!
       - ~/ki-data/chroma-cache:/root/.cache/chroma  # ONNX Embedding-Modell Cache
       - ./agents:/app/agents:ro
+      - ./customers:/app/customers:ro
+      - ./config:/app/config:ro
     environment:
       - DATABASE_URL=sqlite:///./kanban.db
       - REDIS_URL=redis://redis:6379

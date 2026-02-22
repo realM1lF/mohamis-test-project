@@ -23,7 +23,7 @@ class CustomerContextManager:
     """Manages customer context by loading and indexing memory files.
     
     Structure:
-        agents/{agent_id}/customers/{customer_id}/
+        customers/{customer_id}/
             context.md      - Project overview, tech stack
             tech-stack.md   - Technical details
             history.md      - Learned lessons, past decisions
@@ -35,12 +35,12 @@ class CustomerContextManager:
         agent_id: str,
         memory_store: ChromaMemoryStore,
         embedding_provider: EmbeddingProvider,
-        base_path: str = "./agents"
+        base_path: str = "./customers"
     ):
         self.agent_id = agent_id
         self.memory_store = memory_store
         self.embeddings = embedding_provider
-        self.base_path = Path(base_path) / agent_id / "customers"
+        self.base_path = Path(base_path)
         
         # Track which customers have been indexed
         self._indexed_customers = set()

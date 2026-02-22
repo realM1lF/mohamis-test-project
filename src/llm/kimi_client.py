@@ -1,8 +1,9 @@
 """Kimi 2.5 LLM client using Moonshot AI API."""
 
+import asyncio
 import os
 from dataclasses import dataclass
-from typing import AsyncGenerator, Dict, List, Optional
+from typing import Dict, List, Optional
 
 import httpx
 
@@ -31,7 +32,15 @@ class KimiClient:
     BASE_URL = "https://openrouter.ai/api/v1"
     MODEL = "moonshotai/kimi-k2.5"  # Kimi 2.5 via OpenRouter
     
-    def __init__(self, api_key: Optional[str] = None):
+    def __init__(
+        self,
+        api_key: Optional[str] = None,
+        max_retries: Optional[int] = None,
+        timeout_connect: Optional[float] = None,
+        timeout_read: Optional[float] = None,
+        timeout_write: Optional[float] = None,
+        timeout_pool: Optional[float] = None,
+    ):
         self.api_key = api_key or os.getenv("OPEN_ROUTER_API_KEY") or os.getenv("OPENROUTER_API_KEY") or os.getenv("KIMI_API_KEY")
         if not self.api_key:
             raise ValueError("OpenRouter API key required. Set OPENROUTER_API_KEY env var.")
@@ -42,6 +51,18 @@ class KimiClient:
             "HTTP-Referer": "https://github.com/realM1lF/personal-ki-agents",
             "X-Title": "KI-Mitarbeiter Agent"
         }
+        retries_value = int(os.getenv("KIMI_MAX_RETRIES", "1")) if max_retries is None else int(max_retries)
+        self.max_retries = max(0, retries_value)
+        connect_timeout = float(os.getenv("KIMI_TIMEOUT_CONNECT", "10")) if timeout_connect is None else float(timeout_connect)
+        read_timeout = float(os.getenv("KIMI_TIMEOUT_READ", "90")) if timeout_read is None else float(timeout_read)
+        write_timeout = float(os.getenv("KIMI_TIMEOUT_WRITE", "30")) if timeout_write is None else float(timeout_write)
+        pool_timeout = float(os.getenv("KIMI_TIMEOUT_POOL", "10")) if timeout_pool is None else float(timeout_pool)
+        self.timeout = httpx.Timeout(
+            connect=connect_timeout,
+            read=read_timeout,
+            write=write_timeout,
+            pool=pool_timeout,
+        )
     
     async def chat(
         self,
@@ -59,24 +80,34 @@ class KimiClient:
         if max_tokens:
             payload["max_tokens"] = max_tokens
         
-        async with httpx.AsyncClient() as client:
-            response = await client.post(
-                f"{self.BASE_URL}/chat/completions",
-                headers=self.headers,
-                json=payload,
-                timeout=120.0
-            )
-            
-            if response.status_code != 200:
-                raise Exception(f"Kimi API error: {response.status_code} - {response.text}")
-            
-            data = response.json()
-            
-            return LLMResponse(
-                content=data["choices"][0]["message"]["content"],
-                usage=data.get("usage", {}),
-                model=data.get("model", self.MODEL)
-            )
+        attempt = 0
+        last_error: Optional[Exception] = None
+        while attempt <= self.max_retries:
+            try:
+                async with httpx.AsyncClient(timeout=self.timeout) as client:
+                    response = await client.post(
+                        f"{self.BASE_URL}/chat/completions",
+                        headers=self.headers,
+                        json=payload,
+                    )
+                if response.status_code != 200:
+                    raise RuntimeError(f"Kimi API error: {response.status_code} - {response.text}")
+                data = response.json()
+                return LLMResponse(
+                    content=data["choices"][0]["message"]["content"],
+                    usage=data.get("usage", {}),
+                    model=data.get("model", self.MODEL)
+                )
+            except (httpx.ConnectTimeout, httpx.ReadTimeout, httpx.WriteTimeout, httpx.PoolTimeout) as e:
+                last_error = e
+            except httpx.RequestError as e:
+                last_error = e
+
+            attempt += 1
+            if attempt <= self.max_retries:
+                await asyncio.sleep(min(2 ** attempt, 5))
+
+        raise RuntimeError(f"Kimi request failed after {self.max_retries + 1} attempts: {last_error}")
     
     def create_system_prompt(self, context: Dict) -> str:
         """Create system prompt for Developer Agent (German)."""
