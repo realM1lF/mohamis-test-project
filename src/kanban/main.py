@@ -4,6 +4,7 @@ FastAPI application for Kanban Board Backend
 import os
 import uuid
 from contextlib import asynccontextmanager
+from datetime import datetime
 from pathlib import Path
 from typing import Optional, List, Dict, Any
 
@@ -512,7 +513,7 @@ def get_agents():
 
 # === Phase 1: Learning System API Endpoints ===
 
-@app.post("/tickets/{ticket_id}/approve", response_model=TicketResponse, tags=["Learning System"])
+@app.post("/tickets/{ticket_id}/approve", response_model=TicketResponseEnhanced, tags=["Learning System"])
 def approve_ticket(
     ticket_id: str,
     approval: TicketApproval,
@@ -555,7 +556,7 @@ def approve_ticket(
     return updated_ticket
 
 
-@app.post("/tickets/{ticket_id}/request-changes", response_model=TicketResponse, tags=["Learning System"])
+@app.post("/tickets/{ticket_id}/request-changes", response_model=TicketResponseEnhanced, tags=["Learning System"])
 def request_ticket_changes(
     ticket_id: str,
     changes: ChangeRequest,
