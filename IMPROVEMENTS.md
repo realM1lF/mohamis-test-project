@@ -8,15 +8,6 @@
 
 ## 🚨 KRITISCH (Sofort beheben)
 
-### 1. Fehlende .env.example
-- **Status:** 🟡 DOCUMENTATION
-- **Ort:** Root-Verzeichnis
-- **Beschreibung:** Keine Beispiel-Umgebungsdatei vorhanden
-- **Impact:** Neue Entwickler wissen nicht welche Variablen benötigt werden
-- **Lösung:** 
-  - ✅ `.env.example` erstellt (siehe Root)
-  - In README.md dokumentieren
-
 ### 2. Docker Container läuft als root
 - **Status:** 🔴 SECURITY
 - **Ort:** `docker/Dockerfile.worker`, `docker/Dockerfile.backend`
