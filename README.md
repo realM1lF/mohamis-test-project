@@ -16,12 +16,14 @@ Dieses System ermöglicht es, **beliebige KI-gestützte Entwickler-Agenten** zu 
 
 ### Beispiel-Agent: Mohami
 
-**Mohami** ist unser erster Test-Agent - ein KI-Entwickler spezialisiert auf Shopware und PHP. Er demonstriert die Fähigkeiten des Systems, aber du kannst beliebig viele weitere Agents mit unterschiedlichen Spezialisierungen erstellen:
+**Mohami** ist unser erster Test-Agent - ein KI-Entwickler mit Fokus auf **Python und Shopware**. Definiert in `agents/mohami/` mit:
 
-- 🐍 **Python-Experte** für Backend-Entwicklung
-- ⚛️ **React-Spezialist** für Frontend-Apps
-- 📱 **Mobile-Developer** für iOS/Android
-- 🔒 **Security-Experte** für Audits
+- **Rolle:** Full-Stack Developer (laut `soul.md`)
+- **Spezialisierung:** python-shopware (laut `config.yaml`)
+- **Tech-Stack:** Python, PHP, JavaScript, React, FastAPI, Shopware
+- **Persönlichkeit:** Freundlich, lösungsorientiert, perfektionistisch
+
+Er demonstriert die Fähigkeiten des Systems, aber du kannst beliebig viele weitere Agents mit unterschiedlichen Spezialisierungen erstellen:
 
 ### Das Besondere: Jedes Agent hat ein Gedächtnis
 
