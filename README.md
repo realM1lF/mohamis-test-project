@@ -1,22 +1,31 @@
-# 🤖 Mohami - Dein KI-Mitarbeiter für Softwareentwicklung
+# 🤖 KI-Mitarbeiter System
 
-> Ein autonomer KI-Entwickler, der Tickets entgegennimmt, analysiert, implementiert und aus Erfahrungen lernt.
+> Ein Multi-Agent System für Softwareentwicklung. Autonome KI-Entwickler, die Tickets entgegennehmen, analysieren, implementieren und aus Erfahrungen lernen.
 
 ---
 
-## 🎯 Was ist Mohami?
+## 🎯 Was ist das KI-Mitarbeiter System?
 
-**Mohami** ist ein KI-gestütztes Entwickler-Assistenzsystem, das wie ein virtueller Mitarbeiter funktioniert:
+Dieses System ermöglicht es, **beliebige KI-gestützte Entwickler-Agenten** zu betreiben, die wie virtuelle Mitarbeiter fungieren:
 
 - 📋 **Liest Tickets** aus einem Kanban-Board
-- 🧠 **Analysiert** Code und Anforderungen
+- 🧠 **Analysiert** Code und Anforderungen  
 - ✍️ **Implementiert** Lösungen automatisch
 - 🔄 **Erstellt** Pull Requests
 - 🧠 **Merkt sich** erfolgreiche Lösungen
 
-### Das Besondere: Ein Agent mit Gedächtnis
+### Beispiel-Agent: Mohami
 
-Anders als einfache Code-Assistenten hat Mohami ein **4-Schichten-Gedächtnis**:
+**Mohami** ist unser erster Test-Agent - ein KI-Entwickler spezialisiert auf Shopware und PHP. Er demonstriert die Fähigkeiten des Systems, aber du kannst beliebig viele weitere Agents mit unterschiedlichen Spezialisierungen erstellen:
+
+- 🐍 **Python-Experte** für Backend-Entwicklung
+- ⚛️ **React-Spezialist** für Frontend-Apps
+- 📱 **Mobile-Developer** für iOS/Android
+- 🔒 **Security-Experte** für Audits
+
+### Das Besondere: Jedes Agent hat ein Gedächtnis
+
+Anders als einfache Code-Assistenten hat jeder Agent ein **4-Schichten-Gedächtnis**:
 
 | Schicht | Was wird gespeichert? | Beispiel |
 |---------|----------------------|----------|
@@ -98,7 +107,7 @@ curl -X POST http://localhost:8000/tickets \
 
 ### Der ORPA-Workflow
 
-Mohami arbeitet in einem **4-Phasen-Zyklus**:
+Jeder Agent arbeitet in einem **4-Phasen-Zyklus**:
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -134,7 +143,7 @@ Mohami arbeitet in einem **4-Phasen-Zyklus**:
 project-mohami/
 │
 ├── 🤖 agent_worker.py          # Haupt-Prozess (Polling & Workflow)
-├── 🎯 src/agents/              # Agent-Implementierungen
+├── 🎯 src/agents/              # Agent-Framework
 │   ├── intelligent_agent.py    # ORPA-Workflow & Tool-Auswahl
 │   └── orpa_states.py          # Zustandsmaschine
 │
@@ -164,8 +173,8 @@ project-mohami/
 │   ├── workspace_manager.py    # DDEV & lokale Workspaces
 │   └── repository_manager.py   # Git-Clone/Push/Pull
 │
-└── 👤 agents/                  # Agent-Konfiguration
-    └── mohami/
+└── 👤 agents/                  # Agent-Konfigurationen
+    └── mohami/                 # Unser erster Test-Agent
         ├── soul.md             # Persönlichkeit
         ├── rules.md            # Verhaltensregeln
         ├── knowledge.md        # Domänenwissen
@@ -175,6 +184,25 @@ project-mohami/
             ├── lessons/        # Gelernte Lösungen
             └── links/          # Nützliche Ressourcen
 ```
+
+### Multi-Agent Fähigkeit
+
+Das System unterstützt **beliebig viele Agents**:
+
+```
+agents/
+├── mohami/              # Shopware/PHP Spezialist
+├── python-expert/       # Python Backend Entwickler
+├── frontend-guru/       # React/Vue Spezialist
+└── mobile-dev/          # Mobile App Entwickler
+```
+
+Jeder Agent hat:
+- Eigene Persönlichkeit (`soul.md`)
+- Eigene Regeln (`rules.md`)
+- Eigenes Wissen (`knowledge.md`)
+- Eigenes Gedächtnis (`memories/`)
+- Zugewiesene Kunden (`config.yaml`)
 
 ### Technologie-Stack
 
@@ -194,9 +222,17 @@ project-mohami/
 
 ## 🎮 Agenten-Konfiguration
 
-### Eigener Agent
+### Eigener Agent erstellen
 
-Jeder Agent hat eine eigene Identität in `agents/{agent_id}/`:
+```bash
+# Mit dem Setup-Skript
+python scripts/create_agent.py
+
+# Oder manuell:
+mkdir -p agents/mein-agent/{memories/{systems,lessons,links},customers}
+```
+
+Jeder Agent hat eine eigene Identität:
 
 **soul.md** - Persönlichkeit:
 ```markdown
@@ -229,14 +265,15 @@ Jeder Agent hat eine eigene Identität in `agents/{agent_id}/`:
 ```markdown
 # Wissen
 
-## Shopware 6
-- Service-Decorator Pattern bevorzugen
-- Cache immer nach DB-Änderungen leeren
+## Meine Spezialisierung
+- Django/Flask für Backend
+- PostgreSQL für Datenbanken
+- Docker für Deployment
 ```
 
 ### Kunden-Integration
 
-Kunden werden in `customers/{customer}/` konfiguriert:
+Kunden werden in `customers/{customer}/` konfiguriert und können mehreren Agents zugewiesen werden:
 
 ```bash
 customers/
@@ -285,10 +322,10 @@ pytest --cov=src --cov-report=html
 ### Memories laden
 
 ```bash
-# Lädt alle Markdown-Dateien aus agents/{agent}/memories/ in ChromaDB
-python scripts/load_memories.py
+# Für einen Agenten:
+python scripts/load_memories.py --agent mohami
 
-# Dry-run (zeigt was geladen würde)
+# Dry-run (zeigt was geladen würde):
 python scripts/load_memories.py --dry-run
 ```
 
@@ -333,16 +370,16 @@ KEYS *
 
 ## 🛣️ Roadmap & Vision
 
-Siehe [IDEAS.md](IDEAS.md) für die langfristige Vision ("Mohami Studio") und [ROADMAP.md](ROADMAP.md) für den Entwicklungsplan.
+### Langfristige Vision: "KI-Mitarbeiter für jeden"
 
-Kurzfristige Highlights:
-- ✅ ORPA-Workflow mit Tool-Use
-- ✅ 4-Schichten-Gedächtnis
-- ✅ GitHub/Bitbucket Integration
-- ✅ DDEV-Integration
-- 🔄 Mohami Studio (UI für Non-Devs)
-- 🔄 Multi-Agent-Teams
-- 🔄 Secrets Vault
+Das System ist darauf ausgelegt, beliebige KI-Entwickler zu betreiben:
+
+- **Multi-Agent Teams**: Verschiedene Agents für verschiedene Technologien
+- **Agent-Marketplace**: Vordefinierte Agents für gängige Stacks
+- **Mohami Studio**: UI für Non-Devs (siehe [pm/IDEAS.md](pm/IDEAS.md))
+- **Enterprise Features**: SSO, Audit-Logs, Compliance
+
+Siehe [ROADMAP.md](ROADMAP.md) für den detaillierten Entwicklungsplan und [IMPROVEMENTS.md](IMPROVEMENTS.md) für bekannte Issues.
 
 ---
 
@@ -353,8 +390,6 @@ Kurzfristige Highlights:
 3. Committen: `git commit -am 'feat: neues Feature'`
 4. Pushen: `git push origin feature/neues-feature`
 5. Pull Request erstellen
-
-Siehe [IMPROVEMENTS.md](IMPROVEMENTS.md) für bekannte Issues und Optimierungspotenzial.
 
 ---
 
@@ -372,3 +407,5 @@ MIT License - siehe [LICENSE](LICENSE)
 ---
 
 **Made with ❤️ and 🤖 by the Mohami Team**
+
+*Mohami ist nur der Anfang - baue deinen eigenen KI-Mitarbeiter!*
