@@ -127,3 +127,100 @@ class ChatMessageRequest(BaseModel):
 class ChatMessageResponse(BaseModel):
     reply: str
     session_id: str
+
+
+
+# === Phase 1: Learning System Enhancement Schemas ===
+
+class TicketApproval(BaseModel):
+    """Schema fuer menschlichen Approval."""
+    approved: bool  # True = 👍, False = 👎
+    feedback: Optional[str] = None
+    rating: Optional[int] = Field(None, ge=1, le=5)
+    request_reflection: bool = True
+
+
+class ChangeRequest(BaseModel):
+    """Schema fuer Aenderungsanfragen."""
+    feedback: str
+    priority: str = "normal"  # "low", "normal", "high"
+    back_to_status: str = "in_progress"
+
+
+class IterationRecord(BaseModel):
+    """Schema fuer Ticket-Iterationen."""
+    id: str
+    ticket_id: str
+    iteration_number: int
+    orpa_state: str  # "observing", "reasoning", "planning", "acting"
+    intended_action: Optional[str] = None
+    tools_planned: List[str] = []
+    tools_executed: List[dict] = []
+    execution_success: bool
+    error_occurred: bool = False
+    error_message: Optional[str] = None
+    error_type: Optional[str] = None
+    created_at: datetime
+    
+    class Config:
+        from_attributes = True
+
+
+class LearningRecordResponse(BaseModel):
+    """Schema fuer Learning Records."""
+    id: str
+    ticket_id: str
+    customer_id: str
+    agent_id: str
+    learning_type: str  # "success", "correction", "lesson", "anti_pattern"
+    problem: str
+    attempted_solution: Optional[str] = None
+    final_solution: str
+    reflection: Optional[str] = None
+    key_takeaway: Optional[str] = None
+    success: bool
+    iterations_count: Optional[int] = None
+    tools_used: List[str] = []
+    human_feedback: Optional[str] = None
+    created_at: datetime
+    
+    class Config:
+        from_attributes = True
+
+
+# Erweiterte Ticket Schemas
+class TicketUpdateEnhanced(TicketUpdate):
+    """Erweitertes TicketUpdate mit Approval-Feldern."""
+    human_approved: Optional[bool] = None
+    human_feedback: Optional[str] = None
+    approved_by: Optional[str] = None
+    approved_at: Optional[datetime] = None
+    testing_notes: Optional[str] = None
+
+
+class TicketResponseEnhanced(TicketResponse):
+    """Erweitertes TicketResponse mit Approval-Feldern."""
+    human_approved: Optional[bool] = None
+    human_feedback: Optional[str] = None
+    approved_by: Optional[str] = None
+    approved_at: Optional[datetime] = None
+    testing_notes: Optional[str] = None
+    iterations: List[IterationRecord] = []
+    learnings: List[LearningRecordResponse] = []
+    
+    class Config:
+        from_attributes = True
+
+
+class TicketDetailResponseEnhanced(TicketDetailResponse):
+    """Erweitertes TicketDetail mit Learning-Info."""
+    human_approved: Optional[bool] = None
+    human_feedback: Optional[str] = None
+    approved_by: Optional[str] = None
+    approved_at: Optional[datetime] = None
+    testing_notes: Optional[str] = None
+    iterations: List[IterationRecord] = []
+    learnings: List[LearningRecordResponse] = []
+    
+    class Config:
+        from_attributes = True

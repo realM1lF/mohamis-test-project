@@ -14,17 +14,22 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Session
 
 from .models import Base, Ticket, Comment, ensure_kanban_schema
+from .models import TicketIteration, LearningRecord  # Phase 1: Learning System
 from .schemas import (
     TicketCreate, TicketUpdate, TicketResponse, TicketDetailResponse,
     CommentCreate, CommentResponse, TicketFilter, AgentQueueResponse,
     TicketStatus, TicketPriority, WebhookTicketCreated,
     ChatMessageRequest, ChatMessageResponse,
+    # Phase 1: Learning System Schemas
+    TicketApproval, ChangeRequest, IterationRecord, LearningRecordResponse,
+    TicketUpdateEnhanced,
 )
 from .crud import (
     create_ticket, get_ticket, get_ticket_with_comments, get_tickets,
     update_ticket, assign_ticket, delete_ticket, get_agent_queue,
     create_comment, get_comments, get_ticket_stats
 )
+from .crud_async import TicketIterationCRUD, LearningRecordCRUD  # Phase 1: Learning System CRUD
 
 # Database setup
 DATABASE_URL = "sqlite:///./kanban.db"
@@ -503,6 +508,164 @@ def get_agents():
             "assigned_customers": [],
         })
     return agents
+
+
+# === Phase 1: Learning System API Endpoints ===
+
+@app.post("/tickets/{ticket_id}/approve", response_model=TicketResponse, tags=["Learning System"])
+def approve_ticket(
+    ticket_id: str,
+    approval: TicketApproval,
+    db: Session = Depends(get_db),
+    current_user: Optional[str] = "human"  # In echt aus Auth holen
+):
+    """
+    Menschlicher Approval-Prozess fuer ein Ticket.
+    
+    - approved=true: 👍 Ticket ist erfolgreich, Learning wird gespeichert
+    - approved=false: 👎 Ticket hat Fehler, kein Learning
+    - feedback: Optionales Feedback fuer den Agenten
+    - request_reflection: Soll Agent reflektieren?
+    """
+    ticket = crud.get_ticket(db, ticket_id)
+    if not ticket:
+        raise HTTPException(status_code=404, detail="Ticket not found")
+    
+    if ticket.status != "testing":
+        raise HTTPException(
+            status_code=400, 
+            detail=f"Ticket must be in 'testing' status, current: {ticket.status}"
+        )
+    
+    # Update Ticket mit Approval-Info
+    update_data = TicketUpdateEnhanced(
+        status=TicketStatus.DONE if approval.approved else TicketStatus.CLARIFICATION,
+        human_approved=approval.approved,
+        human_feedback=approval.feedback,
+        approved_by=current_user,
+        approved_at=datetime.utcnow()
+    )
+    
+    updated_ticket = crud.update_ticket(db, ticket_id, update_data)
+    
+    # TODO: Trigger Learning speichern (Phase 3)
+    # if approval.approved:
+    #     agent.trigger_learning_save(ticket_id, approval.feedback, approval.request_reflection)
+    
+    return updated_ticket
+
+
+@app.post("/tickets/{ticket_id}/request-changes", response_model=TicketResponse, tags=["Learning System"])
+def request_ticket_changes(
+    ticket_id: str,
+    changes: ChangeRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    Fordert Aenderungen an einem Ticket an.
+    Setzt Ticket zurueck auf 'in_progress'.
+    """
+    ticket = crud.get_ticket(db, ticket_id)
+    if not ticket:
+        raise HTTPException(status_code=404, detail="Ticket not found")
+    
+    if ticket.status not in ["testing", "done"]:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Cannot request changes for ticket in status: {ticket.status}"
+        )
+    
+    update_data = TicketUpdateEnhanced(
+        status=TicketStatus(changes.back_to_status),
+        testing_notes=changes.feedback,
+        agent=None,  # Reset agent assignment
+        agent_working_since=None
+    )
+    
+    updated_ticket = crud.update_ticket(db, ticket_id, update_data)
+    return updated_ticket
+
+
+@app.get("/tickets/{ticket_id}/iterations", response_model=List[IterationRecord], tags=["Learning System"])
+def get_ticket_iterations(ticket_id: str, db: Session = Depends(get_db)):
+    """Holt alle Iterationen (Arbeitsschritte) eines Tickets."""
+    ticket = crud.get_ticket(db, ticket_id)
+    if not ticket:
+        raise HTTPException(status_code=404, detail="Ticket not found")
+    
+    iteration_crud = TicketIterationCRUD(db)
+    iterations = iteration_crud.get_by_ticket(ticket_id)
+    return iterations
+
+
+@app.get("/tickets/{ticket_id}/learnings", response_model=List[LearningRecordResponse], tags=["Learning System"])
+def get_ticket_learnings(ticket_id: str, db: Session = Depends(get_db)):
+    """Holt alle Learning Records eines Tickets."""
+    ticket = crud.get_ticket(db, ticket_id)
+    if not ticket:
+        raise HTTPException(status_code=404, detail="Ticket not found")
+    
+    learning_crud = LearningRecordCRUD(db)
+    learnings = learning_crud.get_by_ticket(ticket_id)
+    return learnings
+
+
+@app.get("/learnings", response_model=List[LearningRecordResponse], tags=["Learning System"])
+def get_learnings(
+    customer_id: Optional[str] = None,
+    agent_id: Optional[str] = None,
+    learning_type: Optional[str] = None,
+    success: Optional[bool] = None,
+    limit: int = 10,
+    db: Session = Depends(get_db)
+):
+    """
+    Durchsucht gelernte Lessons.
+    
+    Filter:
+    - customer_id: Nur Learnings dieses Kunden
+    - agent_id: Nur Learnings dieses Agents
+    - learning_type: "success", "correction", "lesson", "anti_pattern"
+    - success: True/False
+    """
+    learning_crud = LearningRecordCRUD(db)
+    
+    if customer_id:
+        learnings = learning_crud.get_by_customer(
+            customer_id=customer_id,
+            learning_type=learning_type,
+            success=success,
+            limit=limit
+        )
+    else:
+        # Global query
+        query = db.query(LearningRecord)
+        if agent_id:
+            query = query.filter(LearningRecord.agent_id == agent_id)
+        if learning_type:
+            query = query.filter(LearningRecord.learning_type == learning_type)
+        if success is not None:
+            query = query.filter(LearningRecord.success == success)
+        learnings = query.order_by(LearningRecord.created_at.desc()).limit(limit).all()
+    
+    return learnings
+
+
+@app.get("/learnings/stats", tags=["Learning System"])
+def get_learning_stats(db: Session = Depends(get_db)):
+    """Statistiken ueber das Learning System."""
+    total = db.query(LearningRecord).count()
+    successful = db.query(LearningRecord).filter(LearningRecord.success == True).count()
+    corrections = db.query(LearningRecord).filter(LearningRecord.learning_type == "correction").count()
+    anti_patterns = db.query(LearningRecord).filter(LearningRecord.learning_type == "anti_pattern").count()
+    
+    return {
+        "total_learnings": total,
+        "successful": successful,
+        "corrections": corrections,
+        "anti_patterns": anti_patterns,
+        "success_rate": (successful / total * 100) if total > 0 else 0
+    }
 
 
 # Run with: uvicorn src.kanban.main:app --reload
