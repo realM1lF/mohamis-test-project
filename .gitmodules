@@ -1,0 +1,3 @@
+[submodule "wordpress-agent"]
+	path = wordpress-agent
+	url = git@github.com:realM1lF/wordpress-agent.git
