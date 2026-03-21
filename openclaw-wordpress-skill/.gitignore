@@ -1,0 +1,9 @@
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+secrets/
+.local/
+
+# Bei Bedarf: Plugin-Artefakte nicht ins Skill-Verzeichnis kopieren (Plugin liegt in ../openclaw-wordpress-tools/)

@@ -1,0 +1,41 @@
+{
+  "id": "wordpress-site-tools",
+  "name": "WordPress Site Tools",
+  "description": "WordPress tools: REST (wordpress_rest_request), WP-CLI via wp or ddev (wordpress_wp_cli), connection check (wordpress_connection_check), optional media upload (wordpress_media_upload), optional scoped plugin file IO (wordpress_plugin_files under wp-content/plugins/<slug>/). Env or plugin config for URLs, auth, install path, wpCliRunner.",
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "baseUrl": {
+        "type": "string",
+        "description": "Optional override for WORDPRESS_SITE_URL (no trailing slash)."
+      },
+      "user": {
+        "type": "string",
+        "description": "Optional override for WORDPRESS_USER."
+      },
+      "applicationPassword": {
+        "type": "string",
+        "description": "Optional override for WORDPRESS_APPLICATION_PASSWORD."
+      },
+      "wordpressPath": {
+        "type": "string",
+        "description": "Optional override for WORDPRESS_PATH: WordPress root for direct wp, or DDEV project root (directory containing .ddev/) when wpCliRunner is ddev."
+      },
+      "wpCliRunner": {
+        "type": "string",
+        "enum": ["wp", "ddev"],
+        "description": "How to invoke WP-CLI: wp (default, spawn wp on host) or ddev (spawn ddev wp in wordpressPath). Override with env WORDPRESS_WP_CLI_RUNNER."
+      },
+      "wpCliAllowPrefixes": {
+        "type": "array",
+        "items": { "type": "string" },
+        "description": "If non-empty, replaces default WP-CLI allowlist. Each string is a prefix of tokens after wp, e.g. \"post list\" or \"plugin activate\"."
+      },
+      "wpCliProfile": {
+        "type": "string",
+        "description": "Named WP-CLI allowlist preset when wpCliAllowPrefixes is empty or omitted: builtin-default, extended-read, content-staging, staging-admin, dev-local. See skill references/WPCLI_PRESETS.md."
+      }
+    }
+  }
+}

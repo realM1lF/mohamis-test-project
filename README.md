@@ -370,6 +370,19 @@ KEYS *
 
 ---
 
+## OpenClaw: WordPress Skill und Plugin
+
+| Ordner | Inhalt |
+|--------|--------|
+| [`openclaw-wordpress-skill/`](openclaw-wordpress-skill/) | AgentSkill **wordpress-site-ops** (Anweisungen, `references/`) |
+| [`openclaw-wordpress-tools/`](openclaw-wordpress-tools/) | OpenClaw-Plugin **wordpress-site-tools**: u. a. **`wordpress_connection_check`**, **`wordpress_rest_request`**, **`wordpress_wp_cli`**, **`wordpress_media_upload`** |
+
+**Nur Plugin klonen** (z. B. mit Skill von ClawHub): [github.com/realM1lF/openclaw-wordpress-tool](https://github.com/realM1lF/openclaw-wordpress-tool).
+
+Kurzanleitung und Konfiguration: jeweils `README.md` in diesen Verzeichnissen.
+
+---
+
 ## 🛣️ Roadmap & Vision
 
 ### Langfristige Vision: "KI-Mitarbeiter für jeden"

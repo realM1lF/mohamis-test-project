@@ -11,8 +11,11 @@ pip-log.txt
 *.egg-info/
 dist/
 build/
+# (u.a. scripts/package-wordpress-site-ops-for-clawhub.sh → build/clawhub-publish/,
+#  scripts/export-openclaw-wordpress-tools-for-github.sh → build/openclaw-wordpress-tools-github/)
 
 # Node.js
+openclaw-wordpress-tools/node_modules/
 frontend/node_modules/
 frontend/build/
 frontend/.env.local
@@ -54,3 +57,4 @@ htmlcov/
 tmp/
 temp/
 *.tmp
+.skills-ref-tmp/
