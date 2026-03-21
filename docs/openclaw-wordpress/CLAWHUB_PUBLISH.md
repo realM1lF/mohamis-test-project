@@ -134,7 +134,9 @@ clawhub publish /ABS/PFAD/zu/wordpress-site-ops \
   --tags latest
 ```
 
-Bei Folge-Releases Changelog entsprechend anpassen.
+**Update v1.0.1 (English listing + plugin integration copy):** fertiges Kommando und Aenderungsliste in [CLAWHUB_RELEASE_1.0.1.md](CLAWHUB_RELEASE_1.0.1.md).
+
+Bei Folge-Releases Version/Changelog anpassen.
 
 ---
 

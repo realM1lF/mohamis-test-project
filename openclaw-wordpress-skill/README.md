@@ -1,43 +1,66 @@
 # OpenClaw Skill: wordpress-site-ops
 
-WordPress-Betrieb aus **OpenClaw** heraus: Anweisungen und Referenzen fuer den Agenten. Ausfuehrung typischerweise ueber Plugin-Tools (**`wordpress_connection_check`**, **`wordpress_rest_request`**, **`wordpress_wp_cli`**, optional **`wordpress_media_upload`**, optional **`wordpress_plugin_files`**) wenn freigegeben; sonst **`exec`** / **`curl`** / **Browser** / Workspace – siehe [references/NATIVE_VS_PLUGIN.md](references/NATIVE_VS_PLUGIN.md).
+## At a glance (ClawHub & new users)
 
-Kompatibel mit dem [AgentSkills](https://agentskills.io/specification)-Layout (`references/`, kurzes `SKILL.md`) und [OpenClaw Skills](https://docs.openclaw.ai/tools/skills).
+**What this skill does:** Gives your agent **instructions and reference docs** to **operate WordPress**—content, media, plugins, themes, WooCommerce, Elementor, REST, and code under `wp-content` (see `references/PLUGIN_DEV_PLAYBOOK.md`).
 
-## WordPress anbinden (bestehende Site)
+**Why add the companion plugin?** The skill alone does **not** register OpenClaw tools. Install **[wordpress-site-tools](https://github.com/realM1lF/openclaw-wordpress-tool)** on the **gateway host** so the agent gets **`wordpress_rest_request`**, **`wordpress_wp_cli`**, **`wordpress_connection_check`**, and optional **`wordpress_media_upload`** / **`wordpress_plugin_files`**. That is **safer and more reliable** than stitching together `exec` + `curl` for every call.
 
-Schritt-fuer-Schritt inkl. Topologie **REST-only** vs. **REST+WP-CLI**, OpenClaw-`openclaw.json` und Verifikation: **[references/CONNECTING.md](references/CONNECTING.md)**.  
-WP-CLI-Presets (`wpCliProfile` / `wpCliAllowPrefixes`): **[references/WPCLI_PRESETS.md](references/WPCLI_PRESETS.md)**.  
-**OpenClaw-Policy (Sandbox, Allowlists, `group:*`, `deny`):** **[references/OPENCLAW_INTEGRATION.md](references/OPENCLAW_INTEGRATION.md)**.  
-**Plugin-Entwicklung unter OpenClaw:** **[references/PLUGIN_DEV_PLAYBOOK.md](references/PLUGIN_DEV_PLAYBOOK.md)**.  
-**Optionaler WordPress-MU-Helfer (PHP, zum Kopieren auf die Site):** **[bundled/mu-plugin/README.md](bundled/mu-plugin/README.md)** (Routen `openclaw-helper/v1/status`, `health`, `me/capabilities`). **Wann das sinnvoll ist:** **[references/MU_HELPER.md](references/MU_HELPER.md)**.
+**Integrate in a few steps (after installing this skill from ClawHub):**
+
+1. On the machine that runs OpenClaw:
+   ```bash
+   git clone https://github.com/realM1lF/openclaw-wordpress-tool.git
+   cd openclaw-wordpress-tool && npm install
+   openclaw plugins install -l "$(pwd)"
+   openclaw plugins enable wordpress-site-tools
+   openclaw gateway restart
+   ```
+2. Allow the tools in `~/.openclaw/openclaw.json` (see **Plugin** section below).
+3. Set **`WORDPRESS_SITE_URL`**, **`WORDPRESS_USER`**, **`WORDPRESS_APPLICATION_PASSWORD`** (REST) and optionally **`WORDPRESS_PATH`** (WP-CLI)—details in **`references/CONNECTING.md`**.
+
+Reference docs in this bundle are mostly **English**; a few filenames or examples may still use German words—behavior is unchanged.
+
+---
+
+WordPress operations from **OpenClaw**: instructions and references for the agent. Execution is typically via plugin tools (**`wordpress_connection_check`**, **`wordpress_rest_request`**, **`wordpress_wp_cli`**, optional **`wordpress_media_upload`**, optional **`wordpress_plugin_files`**) when allowed; otherwise **`exec`** / **`curl`** / **browser** / workspace—see [references/NATIVE_VS_PLUGIN.md](references/NATIVE_VS_PLUGIN.md).
+
+Compatible with [AgentSkills](https://agentskills.io/specification) layout (`references/`, short `SKILL.md`) and [OpenClaw Skills](https://docs.openclaw.ai/tools/skills).
+
+## Connect WordPress (existing site)
+
+Step-by-step including **REST-only** vs **REST+WP-CLI** topology, OpenClaw `openclaw.json`, and verification: **[references/CONNECTING.md](references/CONNECTING.md)**.  
+WP-CLI presets (`wpCliProfile` / `wpCliAllowPrefixes`): **[references/WPCLI_PRESETS.md](references/WPCLI_PRESETS.md)**.  
+**OpenClaw policy (sandbox, allowlists, `group:*`, `deny`):** **[references/OPENCLAW_INTEGRATION.md](references/OPENCLAW_INTEGRATION.md)**.  
+**Plugin development under OpenClaw:** **[references/PLUGIN_DEV_PLAYBOOK.md](references/PLUGIN_DEV_PLAYBOOK.md)**.  
+**Optional WordPress MU helper (PHP, copy onto the site):** **[bundled/mu-plugin/README.md](bundled/mu-plugin/README.md)** (routes `openclaw-helper/v1/status`, `health`, `me/capabilities`). **When it helps:** **[references/MU_HELPER.md](references/MU_HELPER.md)**.
 
 ## Installation
 
-### Aus dem Repo-Klon (empfohlen: ein Befehl, immer aktuell)
+### From monorepo clone (recommended: one command, stays current)
 
-Im **uebergeordneten** Repo liegt [`scripts/sync-openclaw-wordpress.sh`](../scripts/sync-openclaw-wordpress.sh): verlinkt den Skill per Symlink nach `~/.openclaw/workspace/skills/wordpress-site-ops` und installiert das Plugin mit `openclaw plugins install -l` (Symlink zum Repo). Nach `git pull` einfach erneut ausfuehren.
+The parent repo has [`scripts/sync-openclaw-wordpress.sh`](../scripts/sync-openclaw-wordpress.sh): symlinks the skill to `~/.openclaw/workspace/skills/wordpress-site-ops` and installs the plugin with `openclaw plugins install -l`. After `git pull`, run again.
 
 ```bash
-cd /pfad/zu/personal-ki-agents
+cd /path/to/personal-ki-agents
 ./scripts/sync-openclaw-wordpress.sh --restart
 ```
 
-Anderes Workspace: `OPENCLAW_WORKSPACE=/pfad/zum/workspace ./scripts/sync-openclaw-wordpress.sh`
+Different workspace: `OPENCLAW_WORKSPACE=/path/to/workspace ./scripts/sync-openclaw-wordpress.sh`
 
-### Manuell (Kopie)
+### Manual (copy)
 
-1. Ziel-Ordner im **aktiven Agent-Workspace** (Standard oft `~/.openclaw/workspace`):
+1. Target folder in the **active agent workspace** (often `~/.openclaw/workspace`):
 
    ```bash
-   cp -r /pfad/zu/personal-ki-agents/openclaw-wordpress-skill ~/.openclaw/workspace/skills/wordpress-site-ops
+   cp -r /path/to/personal-ki-agents/openclaw-wordpress-skill ~/.openclaw/workspace/skills/wordpress-site-ops
    ```
 
-   Wichtig: Der Ordnername **`wordpress-site-ops`** muss zum Feld **`name`** in `SKILL.md` passen (AgentSkills-Konvention).
+   The folder name **`wordpress-site-ops`** must match the **`name`** field in `SKILL.md` (AgentSkills convention).
 
-2. **`openclaw gateway restart`** – damit der Gateway Skills/Plugins neu einliest. (Optional danach Chat **`/new`**, nur wenn die Oberfläche noch einen alten Stand zeigt – siehe unten.)
+2. **`openclaw gateway restart`** so the gateway reloads skills/plugins. (Optional: **`/new`** in chat only if the UI still shows stale data—see below.)
 
-3. Prüfen:
+3. Verify:
 
    ```bash
    openclaw skills list
@@ -48,33 +71,33 @@ Anderes Workspace: `OPENCLAW_WORKSPACE=/pfad/zum/workspace ./scripts/sync-opencl
 
    CLI: [skills](https://docs.openclaw.ai/cli/skills)
 
-### Gateway neu starten vs. neuer Chat (`/new`)
+### Gateway restart vs. new chat (`/new`)
 
-| Situation | Empfehlung |
-|-----------|------------|
-| `tools.allow` / `plugins.allow` geaendert, Plugin **enable**/install, Plugin-Code aktualisiert | **`openclaw gateway restart`** – sonst sind neue Tools oft noch nicht registriert. |
-| Nur Skill-Ordner neu kopiert/symlink aktualisiert | Ebenfalls **Gateway restart**; dann `openclaw skills list` pruefen. |
-| Env in `skills.entries…env` geaendert | Oft in **derselben Session** testen; wenn der Agent die Tools/Env nicht sieht, **Restart**. |
-| Plugin-Tools fehlen trotz korrekter Config und nach Restart | **Neuer Chat (`/new`)** oder neue Web-Session – manche Clients cachen die Tool-Liste pro Thread. **Nicht** behaupten, `/new` ersetze den Restart. |
+| Situation | Recommendation |
+|-----------|----------------|
+| `tools.allow` / `plugins.allow` changed, plugin **enabled**/installed, plugin code updated | **`openclaw gateway restart`**—otherwise new tools are often not registered. |
+| Skill folder only copied/symlink updated | **Gateway restart** too; then `openclaw skills list`. |
+| Env in `skills.entries…env` changed | Often test in the **same session**; if the agent does not see tools/env, **restart**. |
+| Plugin tools missing despite correct config after restart | **New chat (`/new`)** or new web session—some clients cache the tool list per thread. **`/new` does not replace restart.** |
 
-Fuer Agenten: siehe auch [SKILL.md](SKILL.md) Punkt zu Gateway vs. Session.
+For agents: see also [SKILL.md](SKILL.md) (gateway vs. session).
 
 ## Plugin: `wordpress-site-tools` (optional)
 
-Das Repository enthaelt das OpenClaw-Plugin **[`openclaw-wordpress-tools/`](../openclaw-wordpress-tools/)** (Plugin-ID **`wordpress-site-tools`**). **Nur Skill von ClawHub?** Plugin separat: **[github.com/realM1lF/openclaw-wordpress-tool](https://github.com/realM1lF/openclaw-wordpress-tool)**. Es registriert u. a. **`wordpress_connection_check`**, **`wordpress_rest_request`**, **`wordpress_wp_cli`**, optional **`wordpress_media_upload`**, optional **`wordpress_plugin_files`** (siehe Plugin-README).
+This monorepo contains the OpenClaw plugin **[`openclaw-wordpress-tools/`](../openclaw-wordpress-tools/)** (plugin ID **`wordpress-site-tools`**). **ClawHub-only install?** Use the standalone repo: **[github.com/realM1lF/openclaw-wordpress-tool](https://github.com/realM1lF/openclaw-wordpress-tool)**. It registers **`wordpress_connection_check`**, **`wordpress_rest_request`**, **`wordpress_wp_cli`**, optional **`wordpress_media_upload`**, optional **`wordpress_plugin_files`** (see plugin README).
 
-**Nur Skill von ClawHub installiert:** Das Plugin ist **nicht** im Skill-Bundle. Separat aus dem **Anbieter-Git-Repository** oder einem lokalen Klon installieren (`openclaw plugins install …`, `enable`, `tools.allow`, Gateway-Restart).
+**Skill from ClawHub only:** The plugin is **not** in the skill bundle. Install separately from GitHub or a local clone (`openclaw plugins install …`, `enable`, `tools.allow`, gateway restart).
 
-1. Im Plugin-Verzeichnis: `npm install`
-2. Installieren und aktivieren:
+1. In the plugin directory: `npm install`
+2. Install and enable:
 
    ```bash
-   openclaw plugins install /pfad/zu/personal-ki-agents/openclaw-wordpress-tools
+   openclaw plugins install /path/to/openclaw-wordpress-tool
    openclaw plugins enable wordpress-site-tools
    openclaw gateway restart
    ```
 
-3. Tool **freigeben** (ohne Allowlist erscheint das optionale Tool nicht), z. B. in `~/.openclaw/openclaw.json`:
+3. **Allow tools** (optional tools need an allowlist), e.g. in `~/.openclaw/openclaw.json`:
 
    ```json5
    {
@@ -86,27 +109,27 @@ Das Repository enthaelt das OpenClaw-Plugin **[`openclaw-wordpress-tools/`](../o
          "wordpress_media_upload",
          "wordpress_plugin_files",
        ],
-       // alternativ alle Tools dieses Plugins:
+       // or all tools from this plugin:
        // allow: ["wordpress-site-tools"],
      },
    }
    ```
 
-4. Env wie in [references/AUTH.md](references/AUTH.md): **`WORDPRESS_SITE_URL`**, **`WORDPRESS_USER`**, **`WORDPRESS_APPLICATION_PASSWORD`** (REST); **`WORDPRESS_PATH`** (WP-CLI-Tool, Arbeitsverzeichnis fuer `wp`). Optional Overrides unter `plugins.entries.wordpress-site-tools.config`.
+4. Env per [references/AUTH.md](references/AUTH.md): **`WORDPRESS_SITE_URL`**, **`WORDPRESS_USER`**, **`WORDPRESS_APPLICATION_PASSWORD`** (REST); **`WORDPRESS_PATH`** (WP-CLI cwd for `wp`). Optional overrides under `plugins.entries.wordpress-site-tools.config`.
 
-Ausfuehrliche Plugin-Doku: im Monorepo `openclaw-wordpress-tools/README.md` – oder nach Klon von **[openclaw-wordpress-tool](https://github.com/realM1lF/openclaw-wordpress-tool)** dort `README.md`; `openclaw plugins install` mit **absolutem** Pfad zum Plugin-Ordner.
+Full plugin docs: **`openclaw-wordpress-tools/README.md`** in the monorepo, or after cloning **[openclaw-wordpress-tool](https://github.com/realM1lF/openclaw-wordpress-tool)**—use an **absolute** path with `openclaw plugins install`.
 
 ## Gating (metadata)
 
-`SKILL.md` setzt `metadata.openclaw.requires.anyBins: ["wp","curl"]` – der Skill gilt nur als **eligible**, wenn **mindestens eines** der Binaries auf dem **Host** (bzw. im Sandbox-Container) auf `PATH` ist.
+`SKILL.md` sets `metadata.openclaw.requires.anyBins: ["wp","curl"]`—the skill is **eligible** only if **at least one** of these binaries is on **PATH** on the host (or sandbox container).
 
-**Entscheidung (konservativ):** Beide Binaer werden beibehalten, damit **Eligibility** zu den im Skill dokumentierten **Fallbacks** passt (`curl`/`exec` fuer REST ohne Plugin-Tool, `wp` fuer WP-CLI laut [references/TOOLING.md](references/TOOLING.md)). Wer ausschliesslich REST ueber das Plugin nutzt und keine Shell-Fallbacks braucht, kann die Metadata verschmaelern und mit `openclaw skills list --eligible` pruefen.
+**Decision (conservative):** Keep both so eligibility matches documented **fallbacks** (`curl`/`exec` for REST without plugin tool, `wp` for WP-CLI per [references/TOOLING.md](references/TOOLING.md)). If you only use REST via the plugin and need no shell fallbacks, you may narrow metadata and verify with `openclaw skills list --eligible`.
 
-Wenn du nur Browser nutzen willst, passe die Metadata an oder installiere zumindest `curl`.
+If you rely only on the browser, adjust metadata or install at least `curl`.
 
-## OpenClaw-Konfiguration (optional)
+## OpenClaw configuration (snippet)
 
-Vollstaendiger **Ausschnitt** fuer Skill + Plugin + Tool-Allowlist (Secrets nur Platzhalter; Datei typisch `~/.openclaw/openclaw.json`, JSON5):
+Example **snippet** for skill + plugin + tool allowlist (secrets as placeholders; file usually `~/.openclaw/openclaw.json`, JSON5):
 
 ```json5
 {
@@ -118,7 +141,7 @@ Vollstaendiger **Ausschnitt** fuer Skill + Plugin + Tool-Allowlist (Secrets nur 
           WORDPRESS_SITE_URL: "https://staging.example.com",
           WORDPRESS_USER: "…",
           WORDPRESS_APPLICATION_PASSWORD: "…",
-          // Nur wenn Gateway Zugriff auf WP-Dateisystem hat:
+          // Only if gateway has filesystem access to WordPress:
           // WORDPRESS_PATH: "/var/www/html",
         },
       },
@@ -129,7 +152,7 @@ Vollstaendiger **Ausschnitt** fuer Skill + Plugin + Tool-Allowlist (Secrets nur 
       "wordpress-site-tools": {
         enabled: true,
         config: {
-          // Optional: wordpressPath, wpCliRunner ("ddev" fuer DDEV), baseUrl, wpCliProfile, wpCliAllowPrefixes – siehe WPCLI_PRESETS.md / DDEV.md
+          // Optional: wordpressPath, wpCliRunner ("ddev" for DDEV), baseUrl, wpCliProfile, wpCliAllowPrefixes – see WPCLI_PRESETS.md / DDEV.md
         },
       },
     },
@@ -146,36 +169,38 @@ Vollstaendiger **Ausschnitt** fuer Skill + Plugin + Tool-Allowlist (Secrets nur 
 }
 ```
 
-- Key **`wordpress-site-ops`** entspricht `metadata.openclaw.skillKey` in `SKILL.md`.
-- `env` wird nur injiziert, wenn die Variable noch nicht gesetzt ist ([Skills](https://docs.openclaw.ai/tools/skills)).
-- Optionale Tools des Plugins sind ohne `tools.allow` **nicht** sichtbar ([Agent Tools](https://docs.openclaw.ai/plugins/agent-tools)).
-- **Sandbox:** Container erben Host-`process.env` nicht automatisch; zusaetzlich Sandbox-Tool-Allowlists beachten. Details: [references/OPENCLAW_INTEGRATION.md](references/OPENCLAW_INTEGRATION.md); Kurz: [Skills Config](https://docs.openclaw.ai/tools/skills-config).
+- Key **`wordpress-site-ops`** matches `metadata.openclaw.skillKey` in `SKILL.md`.
+- `env` is injected only if the variable is not already set ([Skills](https://docs.openclaw.ai/tools/skills)).
+- Optional plugin tools are **not** visible without `tools.allow` ([Agent Tools](https://docs.openclaw.ai/plugins/agent-tools)).
+- **Sandbox:** containers do not automatically inherit host `process.env`; also respect sandbox tool allowlists. Details: [references/OPENCLAW_INTEGRATION.md](references/OPENCLAW_INTEGRATION.md); short: [Skills Config](https://docs.openclaw.ai/tools/skills-config).
 
-## Lokale `.env`
+## Local `.env`
 
-Siehe [`.env.example`](.env.example). Datei `.env` nicht committen.
+See [`.env.example`](.env.example). Do not commit `.env`.
 
-## Qualitätssicherung
+## Quality assurance
 
-Nach der Installation: Pruefschritte und REST/WP-CLI-Smoke-Tests in **[references/CONNECTING.md](references/CONNECTING.md)** (Verifikation).
+After install: checks and REST/WP-CLI smoke tests in **[references/CONNECTING.md](references/CONNECTING.md)** (verification).
 
-## Maintainer (Monorepo)
+## Maintainer (monorepo)
 
-ClawHub-Publish, Release-Checkliste, Testmatrix, Roadmap und `skills-ref validate`: im Git-Repository unter `docs/openclaw-wordpress/` (nicht Teil des ClawHub-Skill-Bundles).
+ClawHub publish, release checklist, test matrix, roadmap, and `skills-ref validate`: in git under `docs/openclaw-wordpress/` (not part of the ClawHub skill bundle).
 
-**ClawHub-Upload:** Oberflaeche erlaubt nur Textdateien – Paket mit [`scripts/package-wordpress-site-ops-for-clawhub.sh`](../scripts/package-wordpress-site-ops-for-clawhub.sh) bauen, dann den erzeugten Ordner `wordpress-site-ops` hochladen.
+**ClawHub upload:** the web UI accepts **text files only**—build a package with [`scripts/package-wordpress-site-ops-for-clawhub.sh`](../scripts/package-wordpress-site-ops-for-clawhub.sh), then upload the generated **`wordpress-site-ops`** folder.
 
-**Eigenes GitHub-Repo fuer das Plugin** (`wordpress-site-tools`): [github.com/realM1lF/openclaw-wordpress-tool](https://github.com/realM1lF/openclaw-wordpress-tool) – Export/Push aus dem Monorepo: [`scripts/export-openclaw-wordpress-tools-for-github.sh`](../scripts/export-openclaw-wordpress-tools-for-github.sh), Details in `docs/openclaw-wordpress/CLAWHUB_PUBLISH.md`.
+**Plugin GitHub repo** (`wordpress-site-tools`): [github.com/realM1lF/openclaw-wordpress-tool](https://github.com/realM1lF/openclaw-wordpress-tool)—export/push from monorepo: [`scripts/export-openclaw-wordpress-tools-for-github.sh`](../scripts/export-openclaw-wordpress-tools-for-github.sh), details in `docs/openclaw-wordpress/CLAWHUB_PUBLISH.md`.
 
-## Repo-Layout (im uebergeordneten Repository)
+**ClawHub listing:** [clawhub.ai/realM1lF/wordpress-site-ops](https://clawhub.ai/realM1lF/wordpress-site-ops)
+
+## Repo layout (parent repository)
 
 ```
-openclaw-wordpress-skill/     # dieser Skill (AgentSkills-Layout)
-openclaw-wordpress-tools/     # OpenClaw-Plugin: wordpress-site-tools
-docs/openclaw-wordpress/      # Maintainer: ClawHub, QA, Testmatrix, Roadmap
+openclaw-wordpress-skill/     # this skill (AgentSkills layout)
+openclaw-wordpress-tools/     # OpenClaw plugin: wordpress-site-tools
+docs/openclaw-wordpress/      # maintainer: ClawHub, QA, test matrix, roadmap
 ```
 
-Skill-Dateien (Auszug):
+Skill files (excerpt):
 
 ```
 openclaw-wordpress-skill/

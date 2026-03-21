@@ -25,7 +25,7 @@ Fortschritt u. a. in [PLUGIN_DEV_PLAYBOOK.md](../../openclaw-wordpress-skill/ref
 
 - [x] [skills-ref validate](https://github.com/agentskills/agentskills/tree/main/skills-ref) gegen Ordner **`wordpress-site-ops`** (installiert z. B. `~/.openclaw/workspace/skills/wordpress-site-ops` nach [sync-Skript](../../scripts/sync-openclaw-wordpress.sh)) – **nicht** gegen `openclaw-wordpress-skill`. Befehl und lokale Kopie: [QA.md](QA.md).
 - [x] [ClawHub](https://docs.openclaw.ai/tools/clawhub): Publish-Flow, Slug `wordpress-site-ops`, Secrets-Checkliste; Upload nur **Textdateien** (kein `.gitignore`, `.env.example`, kein `openclaw-site-helper.php` im Bundle) – Paket-Skript [package-wordpress-site-ops-for-clawhub.sh](../../scripts/package-wordpress-site-ops-for-clawhub.sh), [CLAWHUB_PUBLISH.md](CLAWHUB_PUBLISH.md), Skill-README Maintainer.
-- [ ] Nach **erstem** echten Publish: Slug-URL/Registry-Link und ggf. Validator-Warnungen hier in einem Satz festhalten (Maintainer).
+- [x] Nach **erstem** echten Publish: Listing **[wordpress-site-ops auf ClawHub](https://clawhub.ai/realM1lF/wordpress-site-ops)**; v1.0.1: englisches SKILL/README + Plugin-Integration siehe [CLAWHUB_RELEASE_1.0.1.md](CLAWHUB_RELEASE_1.0.1.md).
 
 ## 4. Optionales WordPress MU-Plugin (neutral)
 
