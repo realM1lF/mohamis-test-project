@@ -1,8 +1,12 @@
 # OpenClaw Plugin: WordPress Site Tools
 
-Registers **optional** agent tools for use with the **`wordpress-site-ops`** skill.
+## New here?
 
-**Nur dieses Repo geklont?** Relative Pfade zu `../openclaw-wordpress-skill/` gelten nicht – siehe **[STANDALONE.md](STANDALONE.md)**. Im Monorepo: Skill unter `../openclaw-wordpress-skill/`.
+**What is this?** An **OpenClaw plugin** (manifest ID **`wordpress-site-tools`**) for the machine that runs your **OpenClaw gateway**. It registers **optional agent tools** so an AI agent can work with an **existing WordPress site**: e.g. **REST** (posts, media, WooCommerce, …) and optionally **WP-CLI**, with allowlists and no shell passthrough where it matters for safety.
+
+**Which skill does it belong to?** The agent skill **`wordpress-site-ops`** (often installed from **ClawHub**). That skill holds **instructions, playbooks, and docs** (`CONNECTING`, auth, DDEV, …). **This repo** is only the **plugin that implements the tools**—without it, the WordPress tools are not available in the gateway. Typical order: install the skill → clone **this** repo, `npm install`, `openclaw plugins install` → configure the site (Application Passwords, etc.) using the skill’s **`CONNECTING.md`** in your workspace at `skills/wordpress-site-ops/references/`.
+
+**Cloned only this repo?** Relative paths like `../openclaw-wordpress-skill/` do not exist—see **[STANDALONE.md](STANDALONE.md)**. In the monorepo, the skill lives under `../openclaw-wordpress-skill/`.
 
 | Tool | Purpose |
 |------|---------|
