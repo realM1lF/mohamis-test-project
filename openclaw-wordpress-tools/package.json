@@ -2,7 +2,7 @@
   "name": "@personal/wordpress-site-tools",
   "version": "0.2.0",
   "private": true,
-  "description": "OpenClaw plugin wordpress-site-tools: REST, WP-CLI, connection check, optional media upload, optional wordpress_plugin_files for wordpress-site-ops skill.",
+  "description": "OpenClaw plugin wordpress-site-tools (pairs with ClawHub skill wordpress-expert): REST, WP-CLI, connection check, optional media upload, optional wordpress_plugin_files.",
   "type": "module",
   "dependencies": {
     "@sinclair/typebox": "^0.34.48"

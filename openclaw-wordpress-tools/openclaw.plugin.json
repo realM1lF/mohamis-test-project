@@ -1,7 +1,7 @@
 {
   "id": "wordpress-site-tools",
   "name": "WordPress Site Tools",
-  "description": "WordPress tools: REST (wordpress_rest_request), WP-CLI via wp or ddev (wordpress_wp_cli), connection check (wordpress_connection_check), optional media upload (wordpress_media_upload), optional scoped plugin file IO (wordpress_plugin_files under wp-content/plugins/<slug>/). Env or plugin config for URLs, auth, install path, wpCliRunner.",
+  "description": "WordPress tools: REST (wordpress_rest_request), WP-CLI via wp or ddev (wordpress_wp_cli), connection check (wordpress_connection_check), optional media upload (wordpress_media_upload), optional scoped plugin file IO (wordpress_plugin_files under wp-content/plugins/<slug>/). Use with OpenClaw skill wordpress-expert (ClawHub). Env or plugin config for URLs, auth, install path, wpCliRunner.",
   "configSchema": {
     "type": "object",
     "additionalProperties": false,

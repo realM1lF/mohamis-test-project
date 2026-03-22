@@ -4,9 +4,18 @@
 
 **What is this?** An **OpenClaw plugin** (manifest ID **`wordpress-site-tools`**) for the machine that runs your **OpenClaw gateway**. It registers **optional agent tools** so an AI agent can work with an **existing WordPress site**: e.g. **REST** (posts, media, WooCommerce, …) and optionally **WP-CLI**, with allowlists and no shell passthrough where it matters for safety.
 
-**Which skill does it belong to?** The agent skill **`wordpress-site-ops`** (often installed from **ClawHub**). That skill holds **instructions, playbooks, and docs** (`CONNECTING`, auth, DDEV, …). **This repo** is only the **plugin that implements the tools**—without it, the WordPress tools are not available in the gateway. Typical order: install the skill → clone **this** repo, `npm install`, `openclaw plugins install` → configure the site (Application Passwords, etc.) using the skill’s **`CONNECTING.md`** in your workspace at `skills/wordpress-site-ops/references/`.
+**Which skill does it belong to?** The agent skill **`wordpress-expert`** (often installed from **ClawHub**). That skill holds **instructions, playbooks, and docs** (`CONNECTING`, auth, DDEV, …). **This repo** is only the **plugin that implements the tools**—without it, the WordPress tools are not available in the gateway. Typical order: install the skill → clone **this** repo, `npm install`, `openclaw plugins install` → configure the site (Application Passwords, etc.) using the skill’s **`CONNECTING.md`** in your workspace at `skills/wordpress-expert/references/`.
 
 **Cloned only this repo?** Relative paths like `../openclaw-wordpress-skill/` do not exist—see **[STANDALONE.md](STANDALONE.md)**. In the monorepo, the skill lives under `../openclaw-wordpress-skill/`.
+
+## Identifiers (ClawHub vs OpenClaw)
+
+| What | Value | Used for |
+|------|--------|----------|
+| **ClawHub skill slug** (skill key) | `wordpress-expert` | `clawhub install wordpress-expert` (or your ClawHub CLI equivalent); workspace path `skills/wordpress-expert/` |
+| **OpenClaw plugin id** | `wordpress-site-tools` | `openclaw plugins enable wordpress-site-tools`; `plugins.entries.wordpress-site-tools` in `openclaw.json` |
+| **Standalone plugin GitHub repo** | [realM1lF/openclaw-wordpress-tool](https://github.com/realM1lF/openclaw-wordpress-tool) | Clone the **plugin** only (repo name ends in `-tool`, singular) |
+| **Monorepo folder** (this tree) | `openclaw-wordpress-tools/` | Only when you work inside the **personal-ki-agents** repository |
 
 | Tool | Purpose |
 |------|---------|
@@ -38,15 +47,21 @@ openclaw plugins enable wordpress-site-tools
 openclaw gateway restart
 ```
 
-**Repo-Klon (Skill + Plugin in einem Rutsch):** nur im Monorepo: [`scripts/sync-openclaw-wordpress.sh`](../scripts/sync-openclaw-wordpress.sh) (Symlink Skill + `plugins install -l` fuer das Plugin).
+## Typical setup (ClawHub skill + this plugin)
 
-## Standalone: nur dieses Repo (eigenes Git)
+1. On the **OpenClaw gateway** host, install the **skill** from **ClawHub**, e.g. **`clawhub install wordpress-expert`** (or whatever your ClawHub version documents—see [ClawHub](https://docs.openclaw.ai/tools/clawhub) and [Skills](https://docs.openclaw.ai/tools/skills)).
+2. **Clone this plugin** (standalone: [github.com/realM1lF/openclaw-wordpress-tool](https://github.com/realM1lF/openclaw-wordpress-tool)), then follow **[Install](#install)** above (`npm install`, `openclaw plugins install`, `openclaw plugins enable wordpress-site-tools`, `openclaw gateway restart`).
+3. Configure WordPress (HTTPS, Application Passwords) and **`openclaw.json`** using the skill’s references—start with **`CONNECTING.md`** under `skills/wordpress-expert/references/` after the skill is installed.
 
-Oeffentliches Repository: **[github.com/realM1lF/openclaw-wordpress-tool](https://github.com/realM1lF/openclaw-wordpress-tool)** (SSH: `git@github.com:realM1lF/openclaw-wordpress-tool.git`). Sinnvoll, wenn Nutzer den Skill **nur** von ClawHub installieren.
+**Monorepo:** If you develop inside **[personal-ki-agents](https://github.com/realM1lF/personal-ki-agents)** (or your fork), you can use [`scripts/sync-openclaw-wordpress.sh`](../scripts/sync-openclaw-wordpress.sh) to symlink the skill and link-install this plugin in one step.
 
-- **WordPress / OpenClaw-Anbindung:** steht im Skill **`wordpress-site-ops`** (nach `clawhub install …` im Workspace unter `skills/wordpress-site-ops/references/`, u. a. `CONNECTING.md`). Auf ClawHub die Skill-Seite verlinken, sobald veroeffentlicht.
-- **Plugin installieren:** wie oben **Install** (`npm install`, `openclaw plugins install`, `enable`, `gateway restart`) mit dem Klon **dieses** Repos (`openclaw-wordpress-tool`).
-- **Maintainer** (Monorepo + Publish): [CLAWHUB_PUBLISH.md](../docs/openclaw-wordpress/CLAWHUB_PUBLISH.md) (nur bei Klon des Repos `personal-ki-agents`; sonst dieselbe Datei auf GitHub unter `docs/openclaw-wordpress/`).
+## Standalone clone (plugin-only Git repo)
+
+Canonical plugin repository: **[github.com/realM1lF/openclaw-wordpress-tool](https://github.com/realM1lF/openclaw-wordpress-tool)** · SSH: `git@github.com:realM1lF/openclaw-wordpress-tool.git`
+
+Use this when you install **`wordpress-expert`** from **ClawHub** but want the **plugin source** from GitHub. Relative links to `../openclaw-wordpress-skill/` in this README only work in the **monorepo** checkout—if you cloned **only** the plugin repo, read **[STANDALONE.md](STANDALONE.md)** for where skill files live on disk and official **OpenClaw** / **ClawHub** links.
+
+**Maintainers** (publish skill vs plugin, export script): [docs/openclaw-wordpress/CLAWHUB_PUBLISH.md](../docs/openclaw-wordpress/CLAWHUB_PUBLISH.md) when you have the full **personal-ki-agents** tree; the same file is also published under `docs/openclaw-wordpress/` on the standalone plugin GitHub repo.
 
 ## Allow the tools
 

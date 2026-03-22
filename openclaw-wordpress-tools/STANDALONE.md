@@ -1,30 +1,34 @@
-# Standalone-Repository (nur dieses Plugin)
+# Standalone clone (plugin repository only)
 
-Canonical: **https://github.com/realM1lF/openclaw-wordpress-tool**
+**Canonical plugin repo:** [github.com/realM1lF/openclaw-wordpress-tool](https://github.com/realM1lF/openclaw-wordpress-tool)
 
-Wenn du **nur** dieses Repo geklont hast (ohne Monorepo `personal-ki-agents`), gelten die **relativen** Verweise im [README](README.md) auf `../openclaw-wordpress-skill/` nicht.
+If you cloned **only** this repository (not the **personal-ki-agents** monorepo), **relative links** in [README.md](README.md) that point to `../openclaw-wordpress-skill/` **do not exist** on disk. Use **ClawHub** + your OpenClaw workspace for skill documentation instead.
 
-## Skill-Dokumentation (`wordpress-site-ops`)
+Official ecosystem docs: [ClawHub](https://docs.openclaw.ai/tools/clawhub), [OpenClaw Skills](https://docs.openclaw.ai/tools/skills), [Agent Tools](https://docs.openclaw.ai/plugins/agent-tools), [Building Plugins](https://docs.openclaw.ai/plugins/building-plugins).
 
-Der Skill heisst auf ClawHub typisch **`wordpress-site-ops`**. Nach Installation im OpenClaw-Workspace liegen die Referenzen z. B. unter:
+## Skill documentation (`wordpress-expert`)
 
-`skills/wordpress-site-ops/references/`
+On **ClawHub**, the skill slug is **`wordpress-expert`**. Install it with your CLI (for example **`clawhub install wordpress-expert`**—see current ClawHub docs if the command differs).
 
-Dort findest du u. a.:
+After installation, reference files on the gateway typically live under:
 
-| Thema | Datei im Skill-Workspace |
-|-------|---------------------------|
-| Anbindung, Topologien, Verifikation | `CONNECTING.md` |
-| Auth / Env / Secrets | `AUTH.md` |
+`skills/wordpress-expert/references/`
+
+Key files:
+
+| Topic | File in skill workspace |
+|-------|-------------------------|
+| Connection, topologies, verification | `CONNECTING.md` |
+| Auth, env, secrets | `AUTH.md` |
 | DDEV | `DDEV.md` |
-| WP-CLI-Presets | `WPCLI_PRESETS.md` |
+| WP-CLI allowlist presets | `WPCLI_PRESETS.md` |
 
-Offizielle Links: [OpenClaw Skills](https://docs.openclaw.ai/tools/skills), [Agent Tools](https://docs.openclaw.ai/plugins/agent-tools), [Building Plugins](https://docs.openclaw.ai/plugins/building-plugins).
+See also identifiers in [README.md](README.md) (**ClawHub** skill slug vs **OpenClaw** plugin id **`wordpress-site-tools`**).
 
-## Optional: MU-Helfer auf der WordPress-Seite
+## Optional MU helper on the WordPress site
 
-PHP-Helfer liegt im **Skill-Repo** unter `bundled/mu-plugin/` (nicht in diesem Plugin-Repo). Nach Skill-Install: Datei aus dem Workspace-Ordner `skills/wordpress-site-ops/bundled/mu-plugin/` nach `wp-content/mu-plugins/` kopieren (siehe Skill-`MU_HELPER.md`).
+The small PHP helper lives in the **skill** tree under `bundled/mu-plugin/` (not in this plugin-only repo). After installing **`wordpress-expert`**, copy files from `skills/wordpress-expert/bundled/mu-plugin/` into your site’s `wp-content/mu-plugins/` (details in the skill’s `MU_HELPER.md` / bundled README).
 
-## Maintainer: Export aus dem Monorepo
+## Maintainers: export from the monorepo
 
-Wer im uebergeordneten Repo **personal-ki-agents** entwickelt und hier nur veroeffentlicht: dort liegt das Skript `scripts/export-openclaw-wordpress-tools-for-github.sh` sowie `docs/openclaw-wordpress/CLAWHUB_PUBLISH.md` (im Standalone-Klon dieser Pfade gibt es nicht).
+If you develop in the parent repo **personal-ki-agents** and publish **this** plugin to GitHub separately, use **`scripts/export-openclaw-wordpress-tools-for-github.sh`** and **`docs/openclaw-wordpress/CLAWHUB_PUBLISH.md`** from that monorepo. A standalone clone of **openclaw-wordpress-tool** does not include those paths unless you copy the published docs from GitHub.
